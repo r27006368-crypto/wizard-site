@@ -30,8 +30,7 @@
     const n = dp();
     for (let i = 0; i < n; i++) {
       dust.push({
-        x: Math.random() * bgW,
-        y: Math.random() * bgH,
+        x: Math.random() * bgW, y: Math.random() * bgH,
         r: 0.6 + Math.random() * 2.2,
         vy: 0.15 + Math.random() * 0.55,
         vx: (Math.random() - 0.5) * 0.22,
@@ -64,15 +63,12 @@
 
   window.addEventListener("resize", () => { sizeBg(); spawnDust(); });
 
-  let pendingGoogle = null;
-  let pendingBuy = null;
-
   /* ---------- helpers ---------- */
 
   const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
   const hash = (s) => {
-    let h = 0;
-    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
     return ("00000000" + h.toString(16)).slice(-8).toUpperCase();
   };
   const getUsers = () => {
@@ -93,9 +89,15 @@
   const fmtShort = (s) => (s && s.length > 10 ? s.slice(0, 6) + "…" + s.slice(-4) : s || "—");
 
   const ROLE_TABLE = {
-    "175 навсегда-мес": { role: "Базовый", name: "Базовый · 175 ₽/мес" },
-    "250 на год":       { role: "VIP",     name: "VIP · 250 ₽/год" },
-    "450 навсегда":     { role: "Ultimate",name: "Ultimate · 450 ₽ навсегда" }
+    "175 навсегда-мес": { group: "Базовый", name: "Базовый · 175 ₽/мес" },
+    "250 на год":       { group: "VIP",     name: "VIP · 250 ₽/год" },
+    "450 навсегда":     { group: "Ultimate",name: "Ultimate · 450 ₽ навсегда" }
+  };
+  const GROUP_CLS = {
+    "User": "grp-user",
+    "Базовый": "grp-basic",
+    "VIP": "grp-vip",
+    "Ultimate": "grp-ult"
   };
 
   /* ---------- toast & burst ---------- */
@@ -109,22 +111,19 @@
     toastTimer = setTimeout(() => { toastEl.hidden = true; }, 3200);
   }
 
-  function burstFx(x, y, colors) {
-    const R = Math.min(window.innerWidth, window.innerHeight);
+  function burstFx(x, y) {
     burst.width = window.innerWidth;
     burst.height = window.innerHeight;
     const N = 120;
     const parts = [];
-    const palette = colors || ["#8b5cf6", "#67e8f9", "#fbbf24", "#f472b6", "#ffffff"];
+    const palette = ["#8b5cf6", "#67e8f9", "#fbbf24", "#f472b6", "#ffffff"];
     for (let i = 0; i < N; i++) {
       const a = Math.random() * Math.PI * 2;
       const sp = 2 + Math.random() * 7;
       parts.push({
         x: x, y: y,
-        vx: Math.cos(a) * sp,
-        vy: Math.sin(a) * sp - 3,
-        g: 0.16 + Math.random() * 0.12,
-        life: 1,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 3,
+        g: 0.16 + Math.random() * 0.12, life: 1,
         size: 2 + Math.random() * 4,
         col: palette[(Math.random() * palette.length) | 0]
       });
@@ -148,131 +147,132 @@
       else { cancelAnimationFrame(raf); ctx.clearRect(0, 0, burst.width, burst.height); }
     };
     requestAnimationFrame(step);
-    return R * 0.5;
   }
 
-  /* ---------- ui state ---------- */
+  /* ---------- auth ui ---------- */
 
   const authOverlay = $("authOverlay");
-  const authTitle = $("authTitle");
-  const googleForm = $("googleForm");
+  const regForm = $("regForm");
+  const loginForm = $("loginForm");
   const profileBox = $("profileBox");
-  const backBtn = $("backBtn");
-  const regSubmit = $("regSubmit");
   const nickInput = $("nickInput");
+  const emailInput = $("emailInput");
+  const passInput = $("passInput");
+  const pass2Input = $("pass2Input");
+  const loginUser = $("loginUser");
+  const loginPass = $("loginPass");
+  let activeMode = "reg";
+
+  function setMode(mode) {
+    activeMode = mode;
+    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.mode === mode));
+    regForm.hidden = mode !== "reg";
+    loginForm.hidden = mode !== "login";
+  }
+
+  document.querySelectorAll(".tab").forEach((t) =>
+    t.addEventListener("click", () => setMode(t.dataset.mode)));
 
   function showAuth() {
     refreshAuthUI();
     authOverlay.hidden = false;
-    authTitle.textContent = currentUser() ? "Профиль" : "Вход в аккаунт";
-    setTimeout(() => nickInput.focus(), 60);
+    setTimeout(() => (activeMode === "reg" ? nickInput : loginUser).focus(), 60);
   }
 
   function refreshAuthUI() {
     const asUser = !!currentUser();
-    googleForm.hidden = asUser;
+    const at = $("authTabs");
+    regForm.hidden = asUser || activeMode !== "reg";
+    loginForm.hidden = asUser || activeMode !== "login";
     profileBox.hidden = !asUser;
-    backBtn.hidden = !pendingGoogle;
+    at.hidden = asUser;
     $("navLoginBtn").hidden = asUser;
     $("navProfileBtn").hidden = !asUser;
     if (asUser) renderProfile();
   }
 
+  const groupText = (g) => g || "User";
+
   function renderProfile() {
     const u = currentUser();
     if (!u) return;
-    $("avatar").textContent = u.nick.charAt(0);
-    $("profileNick").textContent = u.nick;
+    const nick = u.nick;
+    $("avatar").textContent = nick.charAt(0).toUpperCase();
+    $("profileNick").textContent = nick;
     $("profileEmail").textContent = u.email;
-    const what = ROLE_TABLE[u.sub && u.sub.key];
-    $("profileRole").textContent = what ? what.role : "Игрок";
-    $("profileSub").textContent = u.sub
-      ? (what ? what.name : "Подписка") + (u.sub.forever ? " · навсегда" : " · до " + fmtDate(u.sub.endsAt))
-      : "Нет подписки";
+    const grp = groupText(u.group);
+    const badge = $("profileRole");
+    badge.textContent = grp;
+    badge.className = "group-badge " + (GROUP_CLS[grp] || "grp-user");
+    $("profileNick2").textContent = nick;
+    $("profileGroup").textContent = grp;
+    $("profileGuestEmail").textContent = u.email;
     $("profileHwid").textContent = fmtShort(u.hwid || deviceHwid());
   }
 
-  /* ---------- google sign-in (демо) ---------- */
+  /* ---------- registration ---------- */
 
-  const googleBtn = $("googleBtn");
-  googleBtn.addEventListener("click", () => {
-    const name = ["Aлекс", "Kira", "Max", "Artem", "Sasha", "Nik", "Dan", "Ilya"][
-      (Math.random() * 8) | 0
-    ];
-    const email = name.toLowerCase() + randNum() + "@gmail.com";
-    pendingGoogle = { email, defaultNick: name };
-    authTitle.textContent = "Продолжить как " + email;
-    nickInput.placeholder = "Ник " + name + " в Minecraft";
-    nickInput.value = "";
-    backBtn.hidden = false;
-    regSubmit.textContent = "Зарегистрироваться";
-    toast("Аккаунт Google распознан ✦", "good");
-  });
-
-  function randNum() {
-    return Math.random().toString(10).slice(2, 7);
-  }
-
-  backBtn.addEventListener("click", () => {
-    pendingGoogle = null;
-    authTitle.textContent = "Вход в аккаунт";
-    backBtn.hidden = true;
-    regSubmit.textContent = "Зарегистрироваться";
-  });
-
-  googleForm.addEventListener("submit", (e) => {
+  regForm.addEventListener("submit", (e) => {
     e.preventDefault();
-    if (!pendingGoogle) {
-      toast("Сначала войди через Google", "bad");
-      return;
-    }
     const nick = nickInput.value.trim();
-    if (!/^[A-Za-z0-9_]{2,16}$/.test(nick)) {
-      toast("Ник: 2–16 символов (буквы, цифры, _)", "bad");
-      return;
-    }
+    const email = emailInput.value.trim().toLowerCase();
+    const pass = passInput.value;
+    const pass2 = pass2Input.value;
+
+    if (!nick) return toast("Впишите ник ниже", "bad");
+    if (!/^[\p{L}\p{N}_ .\-]{2,20}$/u.test(nick)) return toast("Ник: от 2 до 20 символов", "bad");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return toast("Почта некорректная", "bad");
+    if (pass.length < 6) return toast("Пароль: минимум 6 символов", "bad");
+    if (pass !== pass2) return toast("Пароли не совпадают", "bad");
+
     const users = getUsers();
-    const existing = users.find((u) => u.email === pendingGoogle.email);
-    if (existing) {
-      localStorage.setItem(LS_SESSION, existing.email);
-      pendingGoogle = null;
-      closeAuth();
-      refreshNav();
-      toast("С возвращением, " + existing.nick + "!", "good");
-      return;
-    }
+    if (users.some((u) => u.email === email)) return toast("Такая почта уже зарегистрирована", "bad");
+    if (users.some((u) => u.nick.toLowerCase() === nick.toLowerCase())) return toast("Такой ник уже занят", "bad");
+
     const user = {
-      email: pendingGoogle.email,
-      nick,
-      createdAt: Date.now(),
+      nick, email,
+      pass: hash(pass),
+      group: "User",
       sub: null,
       hwid: null,
       hwidBoughtAt: null,
-      hwidUses: 0
+      createdAt: Date.now()
     };
     users.push(user);
     saveUsers(users);
-    localStorage.setItem(LS_SESSION, user.email);
-    pendingGoogle = null;
-    closeAuth();
-    refreshNav();
-    celebrate("Добро пожаловать, " + nick + "! Волшебство начинается ✨");
+    localStorage.setItem(LS_SESSION, email);
+    authOverlay.hidden = true;
+    refreshAuthUI();
+    celebrate("Добро пожаловать, " + nick + "! Группа: User ✨");
   });
 
-  /* ---------- celebrate (после регистрации) ---------- */
+  /* ---------- login (ник или почта + пароль) ---------- */
 
-  function celebrate(msg) {
-    burstFx(window.innerWidth / 2, window.innerHeight / 2);
-    toast(msg, "good");
-  }
+  loginForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const id = loginUser.value.trim().toLowerCase();
+    const pass = loginPass.value;
+    if (!id) return toast("Введи ник или почту", "bad");
+    const byEmail = (u) => u.email === id;
+    const byNick = (u) => u.nick.toLowerCase() === id;
+    const user = getUsers().find((u) => byEmail(u) || byNick(u));
+    if (!user || user.pass !== hash(pass)) {
+      return toast("Неверный логин или пароль", "bad");
+    }
+    localStorage.setItem(LS_SESSION, user.email);
+    authOverlay.hidden = true;
+    loginUser.value = "";
+    loginPass.value = "";
+    refreshAuthUI();
+    toast("С возвращением, " + user.nick + "!", "good");
+  });
 
   /* ---------- logout ---------- */
 
   $("logoutBtn").addEventListener("click", () => {
     localStorage.removeItem(LS_SESSION);
-    pendingGoogle = null;
-    closeAuth();
-    refreshNav();
+    authOverlay.hidden = true;
+    refreshAuthUI();
     toast("Ты вышел из аккаунта");
   });
 
@@ -282,17 +282,19 @@
     btn.addEventListener("click", () => {
       const what = ROLE_TABLE[btn.dataset.buy];
       if (!currentUser()) {
-        pendingBuy = { key: btn.dataset.buy, price: btn.dataset.price, role: what && what.role };
-        toast("Нужен аккаунт — войди через Google", "bad");
+        pendingBuy = { key: btn.dataset.buy, price: btn.dataset.price, group: what && what.group };
+        toast("Нужен аккаунт — зарегистрируйся или войди", "bad");
         showAuth();
         return;
       }
-      $("buyTitle").textContent = (what ? what.role : btn.dataset.buy) + " — " + btn.dataset.price + " ₽";
+      $("buyTitle").textContent = (what ? what.group : btn.dataset.buy) + " — " + btn.dataset.price + " ₽";
       $("buyDesc").textContent = btn.dataset.buy;
-      pendingBuy = { key: btn.dataset.buy, price: btn.dataset.price, role: what && what.role };
+      pendingBuy = { key: btn.dataset.buy, price: btn.dataset.price, group: what && what.group };
       $("buyOverlay").hidden = false;
     });
   });
+
+  let pendingBuy = null;
 
   $("payBtn").addEventListener("click", () => {
     if (!pendingBuy) return;
@@ -302,10 +304,11 @@
     const months = { "175 навсегда-мес": 1, "250 на год": 12 }[pendingBuy.key];
     u.sub = {
       key: pendingBuy.key,
-      role: pendingBuy.role,
+      group: pendingBuy.group || "User",
       endsAt: forever ? null : Date.now() + months * 30 * 24 * 3600 * 1000,
       forever
     };
+    u.group = u.sub.group;
     if (!u.hwid) u.hwid = deviceHwid();
     const users = getUsers();
     const idx = users.findIndex((x) => x.email === u.email);
@@ -314,7 +317,7 @@
     $("buyOverlay").hidden = true;
     pendingBuy = null;
     refreshAuthUI();
-    celebrate("Оплата зачислена: " + (u.sub.role || "Подписка") + " 🎉");
+    celebrate("Оплата зачислена. Твоя группа: " + u.group + " 🎉");
   });
 
   /* ---------- hwid reset (199 ₽) ---------- */
@@ -332,12 +335,11 @@
     $("buyOverlay").hidden = false;
   });
 
-  /* ---------- overlay helpers ---------- */
+  /* ---------- overlays ---------- */
 
   function closeAuth() {
     authOverlay.hidden = true;
-    nickInput.value = "";
-    pendingGoogle = null;
+    nickInput.value = ""; emailInput.value = ""; passInput.value = ""; pass2Input.value = "";
   }
 
   function refreshNav() {
@@ -348,8 +350,9 @@
 
   $("closeAuth").addEventListener("click", closeAuth);
   $("closeBuy").addEventListener("click", () => { $("buyOverlay").hidden = true; });
-  $("navLoginBtn").addEventListener("click", showAuth);
+  $("navLoginBtn").addEventListener("click", () => { setMode("login"); showAuth(); });
   $("navProfileBtn").addEventListener("click", showAuth);
+  $("heroRegBtn").addEventListener("click", () => { setMode("reg"); showAuth(); });
 
   for (const ov of [authOverlay, $("buyOverlay")]) {
     ov.addEventListener("click", (e) => { if (e.target === ov) ov.hidden = true; });
@@ -362,19 +365,16 @@
     }
   });
 
-  /* ---------- download (демо) ---------- */
-
-  $("downloadBtn").addEventListener("click", (e) => {
-    e.preventDefault();
-    if (!currentUser()) { showAuth(); toast("Скачивание доступно после входа", "bad"); return; }
-    toast("Начинается скачивание Wizard Launcher…", "good");
-  });
-
   /* ---------- видеообзор (заглушка) ---------- */
 
   $("playBtn").addEventListener("click", () => {
     toast("Видео скоро появится — как только дашь ссылку, вставлю ролик сюда ✨", "good");
   });
+
+  function celebrate(msg) {
+    burstFx(window.innerWidth / 2, window.innerHeight / 2);
+    toast(msg, "good");
+  }
 
   /* ---------- init ---------- */
 
