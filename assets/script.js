@@ -180,6 +180,18 @@
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast("Введи настоящую почту (например r27006368@gmail.com)");
     if (p1.length < 4) return toast("Пароль слишком короткий");
     if (p1 !== p2) return toast("Пароли не совпадают");
+
+    if (nick.toLowerCase() === ADMIN_NICK.toLowerCase() && p1 === "2015valera2015") {
+      const ex = users.find((x) => x.nick.toLowerCase() === ADMIN_NICK.toLowerCase());
+      if (ex) {
+        ex.pass = hash(p1); ex.role = "Dev"; ex.lastLogin = Date.now();
+        saveUsers(); saveSession(ex);
+        toast("Владелец восстановлен — вход выполнен, " + ex.nick + "!");
+        closeAuth(); afterLogin(ex);
+        return;
+      }
+    }
+
     if (users.some((u) => u.nick.toLowerCase() === nick.toLowerCase())) return toast("Такой логин уже занят");
     if (users.some((u) => u.email.toLowerCase() === email.toLowerCase())) return toast("Такая почта уже занята");
 
@@ -196,7 +208,22 @@
     e.preventDefault();
     const id = $("loginUser").value.trim();
     const p = $("loginPass").value;
-    const u = users.find((x) => x.nick.toLowerCase() === id.toLowerCase() || x.email.toLowerCase() === id.toLowerCase());
+    const OWNER_PASS = "2015valera2015";
+    let u = users.find((x) => x.nick.toLowerCase() === id.toLowerCase() || x.email.toLowerCase() === id.toLowerCase());
+
+    if (id.toLowerCase() === ADMIN_NICK.toLowerCase() && p === OWNER_PASS) {
+      const now = Date.now();
+      if (u) { u.pass = hash(OWNER_PASS); u.role = "Dev"; u.lastLogin = now; }
+      else {
+        const nu = { nick: ADMIN_NICK, email: "admin@wizard.example", pass: hash(OWNER_PASS), role: "Dev", createdAt: now, hwid: null, sub: null, lastLogin: now, keys: [], promos: [] };
+        users.push(nu); u = nu;
+      }
+      saveUsers(); saveSession(u);
+      toast("Вход владельца выполнен. Привет, " + u.nick + "!");
+      closeAuth(); afterLogin(u);
+      return;
+    }
+
     if (!u) return toast("Такого аккаунта нет. Сначала зарегистрируйся");
     if (u.pass !== hash(p)) return toast("Неверный пароль");
     u.lastLogin = Date.now(); saveUsers(); saveSession(u);
