@@ -285,11 +285,19 @@
       <div id="adminUsers" class="admin-scroll"></div>
 
       <div id="adminKeys" class="admin-scroll" hidden>
+        <div class="field">
+          <label for="keyMonths">Срок ключа</label>
+          <input id="keyMonths" type="number" min="1" max="120" value="3" placeholder="Сколько месяцев действует (например 3)">
+        </div>
         <button class="btn primary w100" id="genKeyBtn">Сгенерировать ключ</button>
         <div id="keysList" class="admin-list"></div>
       </div>
 
       <div id="adminPromos" class="admin-scroll" hidden>
+        <div class="field">
+          <label for="promoCode">Свой код (буквы и цифры)</label>
+          <input id="promoCode" placeholder="Например WIZARD2026 — пусто = сгенерирую сам" maxlength="64">
+        </div>
         <div class="field">
           <label for="promoPercent">Процент скидки</label>
           <input id="promoPercent" type="number" min="1" max="100" placeholder="например 25">

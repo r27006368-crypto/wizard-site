@@ -408,15 +408,16 @@
     const k = keys.find((x) => x.code === code);
     if (!k) return toast("Такого ключа нет. Ключи выдаются в AdminPanel");
     if (k.usedBy) return toast("Ключ уже использован пользователем " + k.usedBy);
-    k.usedBy = cur.nick; saveKeys();
+    k.usedBy = cur.nick; k.usedAt = Date.now(); saveKeys();
 
     const now = Date.now();
+    const m = k.months || 3;
     if (cur.sub && cur.sub.forever) toast("Ключ активирован — бессрочная подписка активна");
     else {
       const base2 = isActive(cur) ? cur.sub.to : now;
-      cur.sub = { from: isActive(cur) && cur.sub ? cur.sub.from : now, to: addMonths(base2, 3), forever: false };
+      cur.sub = { from: isActive(cur) && cur.sub ? cur.sub.from : now, to: addMonths(base2, m), forever: false };
       saveUsers(); renderProfile();
-      toast("Ключ активирован — подписка +3 месяца");
+      toast("Ключ активирован — подписка +" + m + " мес.");
     }
     $("keyInput").value = "";
     renderProfile();
@@ -459,9 +460,15 @@
   function renderAdminTables() {
     const box = $("adminUsers");
     if (!users.length) { box.innerHTML = "<p class='muted'>Пользователей пока нет</p>"; return; }
-    let h = "<table class='admin-table'><thead><tr><th>Ник</th><th>Роль</th><th>Срок</th><th>Почта</th><th>Пароль (hash)</th><th>HWID</th></tr></thead><tbody>";
+
+    let h = "<div class='role-legend'><span class='legend-note'>Роли · выдаются владельцем (высшие → низшие):</span>"
+      + ROLE_TABLE.map((r) => "<span class='group-badge " + roleCls(r) + "'>" + r + "</span>").join("")
+      + "</div>";
+    h += "<p class='muted tiny' style='margin-bottom:10px'>Чтобы выдать роль — выбери её из списка напротив пользователя, применится сразу. AdminPanel видна и работает только у NaitNiks.</p>";
+
+    h += "<table class='admin-table'><thead><tr><th>Ник</th><th>Роль</th><th>Срок</th><th>Почта</th><th>Пароль (hash)</th><th>HWID</th></tr></thead><tbody>";
     for (const u of users) {
-      h += "<tr><td>" + u.nick + "</td><td><select data-role='' data-idx='" + users.indexOf(u) + "'>"
+      h += "<tr><td>" + u.nick + "</td><td><select data-idx='" + users.indexOf(u) + "'>"
         + ROLE_TABLE.map((r) => "<option value='" + r + "'" + (r === u.role ? " selected" : "") + ">" + r + "</option>").join("")
         + "</select></td><td>" + (u.sub ? (u.sub.forever ? "навсегда" : fmtDate(u.sub.from) + " → " + fmtDate(u.sub.to)) : "—") + "</td><td>" + u.email + "</td><td class='mono'>" + u.pass + "</td><td class='mono'>" + (u.hwid || "—") + "</td></tr>";
     }
@@ -469,10 +476,12 @@
     box.innerHTML = h;
     $$("#adminUsers select").forEach((s) => {
       s.addEventListener("change", () => {
-        users[+s.dataset.idx].role = s.value;
+        const t = users[+s.dataset.idx];
+        t.role = s.value;
         saveUsers();
-        if (cur) { renderProfile(); if (users.indexOf(cur) === +s.dataset.idx) refreshNav(); }
-        toast("Роль пользователя изменена");
+        renderAdminTables();
+        if (cur) { renderProfile(); refreshNav(); }
+        toast("Роль " + t.nick + " → " + s.value);
       });
     });
   }
@@ -480,16 +489,18 @@
   function renderKeys() {
     const k = $("keysList");
     if (!keys.length) { k.innerHTML = "<p class='muted'>Ключей пока нет</p>"; return; }
-    k.innerHTML = "<table class='admin-table'><thead><tr><th>Ключ</th><th>Дата</th><th>Статус</th></tr></thead><tbody>" +
-      keys.map((x) => "<tr><td class='mono'>" + x.code + "</td><td>" + fmtDate(x.createdAt) + "</td><td>" + (x.usedBy ? "использован: " + x.usedBy : "свободен") + "</td></tr>").join("") +
+    k.innerHTML = "<table class='admin-table'><thead><tr><th>Ключ</th><th>Срок</th><th>Дата</th><th>Статус</th></tr></thead><tbody>" +
+      keys.map((x) => "<tr><td class='mono'>" + x.code + "</td><td>" + x.months + " мес.</td><td>" + fmtDate(x.createdAt) + "</td><td>"
+        + (x.usedBy ? "использован: " + x.usedBy + " · " + fmtDate(x.usedAt) : "свободен ✅") + "</td></tr>").join("") +
       "</tbody></table>";
   }
 
   $("genKeyBtn").addEventListener("click", () => {
+    const months = Math.max(1, Math.floor(+$("keyMonths").value || 3));
     const code = "WZ-" + rand4() + "-" + rand4() + "-" + rand4();
-    keys.push({ code, createdAt: Date.now(), usedBy: null });
+    keys.push({ code, months, createdAt: Date.now(), usedBy: null });
     saveKeys(); renderKeys();
-    toast("Ключ сгенерирован: " + code);
+    toast("Ключ сгенерирован: " + code + " (" + months + " мес.)");
   });
 
   function renderPromos() {
@@ -503,10 +514,14 @@
   $("genPromoBtn").addEventListener("click", () => {
     const per = parseInt($("promoPercent").value, 10);
     if (!per || per < 1 || per > 100) return toast("Впиши процент от 1 до 100");
-    const code = "WZD-" + rand4();
+    const custom = $("promoCode").value.trim();
+    let code = custom || ("WZD-" + rand4());
+    if (custom && !/^[A-Za-z0-9-_]{4,64}$/.test(custom)) return toast("Код: только буквы и цифры, от 4 до 64 символов");
+    if (promos.some((x) => x.code === code)) return toast("Такой промокод уже есть");
     promos.push({ code, percent: per, usesLeft: 10 });
     savePromos(); renderPromos();
     $("promoPercent").value = "";
+    $("promoCode").value = "";
     toast("Промокод сгенерирован: " + code + " (−" + per + "%)");
   });
 
