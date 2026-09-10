@@ -72,6 +72,12 @@
   })();
 
   const rand4 = () => Math.random().toString(36).slice(2, 6).toUpperCase();
+  const randAlnum = (n) => {
+    const abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let s = "";
+    for (let i = 0; i < n; i++) s += abc[(Math.random() * abc.length) | 0];
+    return s;
+  };
 
   /* ---------- bg ---------- */
 
@@ -165,9 +171,7 @@
   $("profLoginLink").addEventListener("click", (e) => { e.preventDefault(); openAuth("login"); });
   $("profRegLink").addEventListener("click", (e) => { e.preventDefault(); openAuth("reg"); });
 
-  $("navProfileBtn").addEventListener("click", () => {
-    document.getElementById("profile").scrollIntoView({ behavior: "smooth" });
-  });
+  $("navProfileBtn").addEventListener("click", showProfileView);
 
   $("regForm").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -233,8 +237,7 @@
 
   function afterLogin(u) {
     refreshNav();
-    renderProfile();
-    document.getElementById("profile").scrollIntoView({ behavior: "smooth" });
+    showProfileView();
   }
 
   function doLogout() {
@@ -313,7 +316,7 @@
     if (!pending) return;
     const code = $("promoInput").value.trim();
     if (!code) return toast("Впиши промокод сначала");
-    const p = promos.find((x) => x.code === code);
+    const p = promos.find((x) => x.code === code.toUpperCase());
     if (!p) return toast("Промокод не найден");
     if (p.usesLeft === 0) return toast("У промокода кончились использования");
     appliedPromo = p;
@@ -349,6 +352,7 @@
     }
     saveUsers();
     $("buyOverlay").hidden = true; pending = null; appliedPromo = null;
+    renderPromos();
     $("psub").textContent = subText(u);
     renderProfile();
     toast("Оплата принята — подписка оформлена");
@@ -376,11 +380,11 @@
   });
 
   $("buyClient").addEventListener("click", () => {
-    document.getElementById("tariffs").scrollIntoView({ behavior: "smooth" });
+    showMainPage($("tariffs"));
   });
 
   $("dlClient").addEventListener("click", () => {
-    if (!cur || !isActive(cur)) { document.getElementById("tariffs").scrollIntoView({ behavior: "smooth" }); return toast("Нужна активная подписка — выбери тариф"); }
+    if (!cur || !isActive(cur)) { showMainPage($("tariffs")); return toast("Нужна активная подписка — выбери тариф"); }
     toast("Скачивание клиента... (ссылка появится позже)");
   });
 
@@ -489,25 +493,33 @@
   function renderKeys() {
     const k = $("keysList");
     if (!keys.length) { k.innerHTML = "<p class='muted'>Ключей пока нет</p>"; return; }
-    k.innerHTML = "<table class='admin-table'><thead><tr><th>Ключ</th><th>Срок</th><th>Дата</th><th>Статус</th></tr></thead><tbody>" +
-      keys.map((x) => "<tr><td class='mono'>" + x.code + "</td><td>" + x.months + " мес.</td><td>" + fmtDate(x.createdAt) + "</td><td>"
-        + (x.usedBy ? "использован: " + x.usedBy + " · " + fmtDate(x.usedAt) : "свободен ✅") + "</td></tr>").join("") +
+    k.innerHTML = "<table class='admin-table'><thead><tr><th>Ключ</th><th>Срок</th><th>Дата</th><th>Статус</th><th></th></tr></thead><tbody>" +
+      keys.map((x, i) => "<tr><td class='mono'>" + x.code + "</td><td>" + x.months + " мес.</td><td>" + fmtDate(x.createdAt) + "</td><td>"
+        + (x.usedBy ? "использован: " + x.usedBy + " · " + fmtDate(x.usedAt) : "свободен ✅") + "</td><td><button class='mini' data-delkey='" + i + "'>Удалить</button></td></tr>").join("") +
       "</tbody></table>";
   }
 
   $("genKeyBtn").addEventListener("click", () => {
     const months = Math.max(1, Math.floor(+$("keyMonths").value || 3));
-    const code = "WZ-" + rand4() + "-" + rand4() + "-" + rand4();
+    const code = "WZ-" + randAlnum(5) + "-" + randAlnum(5) + "-" + randAlnum(5) + "-" + randAlnum(5);
     keys.push({ code, months, createdAt: Date.now(), usedBy: null });
     saveKeys(); renderKeys();
     toast("Ключ сгенерирован: " + code + " (" + months + " мес.)");
   });
 
+  $("keysList").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-delkey]");
+    if (!b) return;
+    keys.splice(+b.dataset.delkey, 1);
+    saveKeys(); renderKeys();
+    toast("Ключ удалён");
+  });
+
   function renderPromos() {
     const p = $("promosList");
     if (!promos.length) { p.innerHTML = "<p class='muted'>Промокодов пока нет</p>"; return; }
-    p.innerHTML = "<table class='admin-table'><thead><tr><th>Код</th><th>Скидка</th><th>Использований</th></tr></thead><tbody>" +
-      promos.map((x) => "<tr><td class='mono'>" + x.code + "</td><td>" + x.percent + "%</td><td>" + x.usesLeft + "</td></tr>").join("") +
+    p.innerHTML = "<table class='admin-table'><thead><tr><th>Код</th><th>Скидка</th><th>Использований</th><th></th></tr></thead><tbody>" +
+      promos.map((x, i) => "<tr><td class='mono'>" + x.code + "</td><td>" + x.percent + "%</td><td>" + x.usesLeft + "</td><td><button class='mini' data-delpromo='" + i + "'>Удалить</button></td></tr>").join("") +
       "</tbody></table>";
   }
 
@@ -515,7 +527,7 @@
     const per = parseInt($("promoPercent").value, 10);
     if (!per || per < 1 || per > 100) return toast("Впиши процент от 1 до 100");
     const custom = $("promoCode").value.trim();
-    let code = custom || ("WZD-" + rand4());
+    let code = custom ? custom.toUpperCase() : ("WZD-" + randAlnum(10));
     if (custom && !/^[A-Za-z0-9-_]{4,64}$/.test(custom)) return toast("Код: только буквы и цифры, от 4 до 64 символов");
     if (promos.some((x) => x.code === code)) return toast("Такой промокод уже есть");
     promos.push({ code, percent: per, usesLeft: 10 });
@@ -523,6 +535,14 @@
     $("promoPercent").value = "";
     $("promoCode").value = "";
     toast("Промокод сгенерирован: " + code + " (−" + per + "%)");
+  });
+
+  $("promosList").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-delpromo]");
+    if (!b) return;
+    promos.splice(+b.dataset.delpromo, 1);
+    savePromos(); renderPromos();
+    toast("Промокод удалён");
   });
 
   /* ---------- nav / ui ---------- */
@@ -542,10 +562,31 @@
     $("logoutBtn").textContent = "Выйти (" + (cur ? cur.nick : "") + ")";
   }
 
+  /* ---------- views ---------- */
+
+  const VIEWS = ["features", "tariffs", "profile", "video", "socials"];
+
+  function showMainPage(target) {
+    VIEWS.forEach((id) => { const el = $(id); if (el) el.hidden = false; });
+    if (target) target.scrollIntoView({ behavior: "smooth" });
+    else window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function showProfileView() {
+    VIEWS.forEach((id) => { const el = $(id); if (el) el.hidden = id !== "profile"; });
+    if (cur) renderProfile();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   $$('a[href^="#"]').forEach((a) => {
     a.addEventListener("click", (e) => {
-      const t = $(a.getAttribute("href").slice(1));
-      if (t) { e.preventDefault(); t.scrollIntoView({ behavior: "smooth" }); }
+      const id = a.getAttribute("href").slice(1);
+      const t = $(id);
+      if (!t || !id) return;
+      e.preventDefault();
+      if (id === "top") { showMainPage(); return; }
+      if (VIEWS.includes(id)) { if (id === "profile") showProfileView(); else showMainPage(t); return; }
+      t.scrollIntoView({ behavior: "smooth" });
     });
   });
 

@@ -184,6 +184,7 @@ main { position: relative; z-index: 1; }
 .subtitle { max-width: 640px; color: var(--muted); font-size: 19px; font-weight: 600; }
 .cta { display: flex; gap: 14px; margin: 34px 0 0; flex-wrap: wrap; justify-content: center; }
 
+[hidden] { display: none !important; }
 .section { padding: 70px 6vw; position: relative; }
 .sec-title { font-size: clamp(26px, 4vw, 40px); font-weight: 800; text-align: center; color: var(--title); }
 .sec-sub { text-align: center; color: var(--muted); margin: 12px 0 34px; }
@@ -415,10 +416,10 @@ main { position: relative; z-index: 1; }
 
 .profile-card .btn.disabled { opacity: .55; }
 
-.admin-modal { max-width: 900px; }
+.admin-modal { width: min(96vw, 1040px); }
 .admin-gate { padding: 8px 0; }
 .admin-main { display: flex; flex-direction: column; gap: 10px; }
-.admin-scroll { max-height: 56vh; overflow: auto; padding: 4px; }
+.admin-scroll { max-height: 62vh; overflow: auto; padding: 4px; }
 .admin-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 
 .admin-table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -433,6 +434,12 @@ main { position: relative; z-index: 1; }
 }
 .admin-table td select:focus { outline: 2px solid var(--violet); }
 .mono { font-family: Consolas, monospace; font-size: 12px; }
+.mini {
+  background: rgba(220,38,38,.14); color: var(--danger);
+  border: 1px solid rgba(220,38,38,.35); border-radius: 8px;
+  padding: 4px 10px; font-size: 12px; cursor: pointer; font: inherit;
+}
+.mini:hover { background: rgba(220,38,38,.3); }
 
 .role-legend { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 12px; }
 .role-legend .legend-note { width: 100%; color: var(--muted); font-size: 12px; margin-bottom: 2px; }
