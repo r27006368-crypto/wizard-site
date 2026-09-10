@@ -1,12 +1,18 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Wizard — твои идеальный клиент</title>
 <meta name="description" content="Wizard — премиальный Minecraft клиент. Регистрация, профиль, тарифы, сброс HWID.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 5 27h4l2-5h10l2 5h4L16 2Zm0 9 3 7h-6l3-7Z' fill='%238b5cf6'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 5 27h4l2-5h10l2 5h4L16 2Zm0 9 3 7h-6l3-7Z' fill='%237c3aed'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/styles.css">
+<script>
+  try {
+    var t = localStorage.getItem("wizard.theme");
+    if (t === "light") document.documentElement.setAttribute("data-theme", "light");
+  } catch (e) {}
+</script>
 </head>
 <body>
 
@@ -16,10 +22,16 @@
 <div class="stars" aria-hidden="true"></div>
 
 <header class="nav">
-  <a class="logo" href="#top" aria-label="Wizard">
-    <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><path d="M16 2 5 27h4l2-5h10l2 5h4L16 2Zm0 9 3 7h-6l3-7Z" fill="#8b5cf6"/></svg>
-    <span>WIZARD</span>
-  </a>
+  <div class="brand">
+    <a class="logo" href="#top" aria-label="Wizard">
+      <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><path d="M16 2 5 27h4l2-5h10l2 5h4L16 2Zm0 9 3 7h-6l3-7Z" fill="currentColor"/></svg>
+      <span>WIZARD</span>
+    </a>
+    <button class="theme-toggle" id="themeBtn" aria-label="Переключить тему">
+      <svg class="sun" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="4.6" fill="#fbbf24"/><g stroke="#fbbf24" stroke-width="1.8" stroke-linecap="round"><path d="M12 2.5v2.2"/><path d="M12 19.3v2.2"/><path d="M2.5 12h2.2"/><path d="M19.3 12h2.2"/><path d="m5.3 5.3 1.6 1.6"/><path d="m17.1 17.1 1.6 1.6"/><path d="m18.7 5.3-1.6 1.6"/><path d="m6.9 17.1-1.6 1.6"/></g></svg>
+      <svg class="moon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M21 13.5A8.5 8.5 0 0 1 10.5 3 8.5 8.5 0 0 0 3 10.5 8.5 8.5 0 0 0 21 13.5Z" fill="#e2e8f0"/></svg>
+    </button>
+  </div>
   <nav class="links">
     <a href="#features">Возможности</a>
     <a href="#tariffs" class="mid">Тарифы</a>
@@ -35,10 +47,9 @@
 <main id="top">
 
   <section class="hero">
-    <div class="orb" aria-hidden="true"></div>
     <p class="eyebrow">Wizard — твои идеальный клиент</p>
-    <h1 class="title"><span class="grad bob">Wizard</span></h1>
-    <p class="subtitle">Магический инструментарий, чистая ваниль, профиль и роли. Один клик — и игра становится волшебной.</p>
+    <h1 class="title"><span class="grad">Wizard</span></h1>
+    <p class="subtitle">Клиент для игры в Minecraft</p>
     <div class="cta">
       <a class="btn ghost big" href="#tariffs">Выбрать тариф</a>
       <button class="btn primary big" id="heroRegBtn">Зарегистрироваться</button>
@@ -49,12 +60,12 @@
     <h2 class="sec-title">Возможности</h2>
     <p class="sec-sub">Всё, что ты получишь с Wizard</p>
     <div class="feats">
-      <article class="feat"><span class="fi">👤</span><h3>Профиль и роли</h3><p>Аккаунт с ником, почтой и группой. Роль выдаётся за тариф.</p></article>
-      <article class="feat"><span class="fi">🔐</span><h3>HWID-защита</h3><p>Аккаунт привязан к одному устройству. Сброс стрима — 199 ₽.</p></article>
-      <article class="feat"><span class="fi">🎮</span><h3>Чистая игра</h3><p>Стабильный FPS, без лишнего софта и лагов.</p></article>
-      <article class="feat"><span class="fi">✨</span><h3>Эффекты и шейдеры</h3><p>Стекло, свечение, пламя на руках и многое другое.</p></article>
-      <article class="feat"><span class="fi">🔄</span><h3>Обновления</h3><p>Клиент обновляется автоматически под актуальную версию.</p></article>
-      <article class="feat"><span class="fi">🎧</span><h3>Поддержка</h3><p>Поможем с установкой, оплатой и любыми вопросами.</p></article>
+      <article class="feat"><span class="fi">⚔️</span><h3>Aura</h3><p>Рабочая Aura для Minecraft</p></article>
+      <article class="feat"><span class="fi">💎</span><h3>ChestStealer</h3><p>Рабочий ChestStealer для Minecraft — работает на серверах</p></article>
+      <article class="feat"><span class="fi">⚡</span><h3>Optimization</h3><p>Оптимизация клиента в высшем качестве</p></article>
+      <article class="feat"><span class="fi">🎨</span><h3>Visuals</h3><p>Красивые Visuals, которые украсят игру</p></article>
+      <article class="feat"><span class="fi">🔄</span><h3>Обновления</h3><p>Клиент обновляется автоматически под актуальную версию</p></article>
+      <article class="feat"><span class="fi">🎧</span><h3>Поддержка</h3><p>Поможем с установкой, оплатой и любыми вопросами</p></article>
     </div>
   </section>
 
@@ -64,41 +75,48 @@
     <div class="plans">
       <article class="plan">
         <h3>Базовый</h3>
-        <div class="price">175 ₽<small>/ месяц</small></div>
+        <div class="price">250 ₽<small>/ 3 месяца</small></div>
         <ul>
           <li>Основные функции клиента</li>
           <li>Обновления</li>
           <li>Роль «Базовый»</li>
         </ul>
-        <button class="btn primary" data-buy="175 навсегда-мес" data-price="175">Купить</button>
+        <button class="btn primary" data-buy="250 на 3 месяца" data-price="250">Купить</button>
       </article>
       <article class="plan hot">
         <span class="badge">Популярный</span>
         <h3>Годовой</h3>
-        <div class="price">250 ₽<small>/ 1 год</small></div>
+        <div class="price">450 ₽<small>/ 1 год</small></div>
         <ul>
           <li>Всё из Базового</li>
           <li>Приоритетная поддержка</li>
           <li>Роль «VIP»</li>
         </ul>
-        <button class="btn primary" data-buy="250 на год" data-price="250">Купить</button>
+        <button class="btn primary" data-buy="450 на год" data-price="450">Купить</button>
       </article>
       <article class="plan best">
         <span class="badge gold">Навсегда</span>
         <h3>Ultimate</h3>
-        <div class="price">450 ₽<small>/ навсегда</small></div>
+        <div class="price">600 ₽<small>/ навсегда</small></div>
         <ul>
           <li>Всё навсегда</li>
           <li>Эксклюзивные настройки и шейдеры</li>
           <li>Роль «Ultimate»</li>
         </ul>
-        <button class="btn primary" data-buy="450 навсегда" data-price="450">Купить</button>
+        <button class="btn primary" data-buy="600 навсегда" data-price="600">Купить</button>
+      </article>
+      <article class="plan hwid">
+        <span class="badge">Сброс</span>
+        <h3>Сброс HWID</h3>
+        <div class="price">199 ₽<small>/ разово</small></div>
+        <ul>
+          <li>Привязка к одному устройству</li>
+          <li>Сброс при смене ПК</li>
+          <li>Нужен аккаунт на сайте</li>
+        </ul>
+        <button class="btn ghost" id="hwidBuyBtn">Купить сброс</button>
       </article>
     </div>
-    <p class="sec-sub hwid-note">
-      Потерял доступ к ПК? Сброс HWID — <b>199 ₽</b> разовая покупка.
-      Только 1 устройство на аккаунт. Сброс доступен только авторизованным.
-    </p>
   </section>
 
   <section class="section" id="video">
@@ -133,19 +151,19 @@
   <div class="modal">
     <button class="close" id="closeAuth" aria-label="Закрыть">✕</button>
     <div class="modal-head">
-      <svg viewBox="0 0 32 32" width="42" height="42" aria-hidden="true"><path d="M16 2 5 27h4l2-5h10l2 5h4L16 2Zm0 9 3 7h-6l3-7Z" fill="#8b5cf6"/></svg>
-      <h3 id="authTitle">Регистрация / Вход</h3>
+      <svg viewBox="0 0 32 32" width="40" height="40" aria-hidden="true"><path d="M16 2 5 27h4l2-5h10l2 5h4L16 2Zm0 9 3 7h-6l3-7Z" fill="#7c3aed"/></svg>
+      <h3 id="authTitle">Вход в аккаунт</h3>
     </div>
 
     <div class="auth-tabs" id="authTabs">
-      <button class="tab active" data-mode="reg">Регистрация</button>
       <button class="tab" data-mode="login">Вход</button>
+      <button class="tab active" data-mode="reg">Регистрация</button>
     </div>
 
     <form id="regForm" class="auth-form">
       <div class="field">
         <label for="nickInput">Ник</label>
-        <input id="nickInput" maxlength="20" placeholder="Впишите ник ниже" autocomplete="nickname">
+        <input id="nickInput" maxlength="20" placeholder="Впишите ник" autocomplete="nickname">
       </div>
       <div class="field">
         <label for="emailInput">Почта</label>
@@ -165,11 +183,11 @@
     <form id="loginForm" class="auth-form" hidden>
       <div class="field">
         <label for="loginUser">Ник или почта</label>
-        <input id="loginUser" placeholder="Твой ник или почта" autocomplete="username">
+        <input id="loginUser" placeholder="Ник или почта" autocomplete="username">
       </div>
       <div class="field">
         <label for="loginPass">Пароль</label>
-        <input id="loginPass" type="password" placeholder="Твой пароль" autocomplete="current-password">
+        <input id="loginPass" type="password" placeholder="Пароль" autocomplete="current-password">
       </div>
       <button type="submit" class="btn primary w100" id="loginSubmit">Войти</button>
     </form>

@@ -15,7 +15,13 @@
   const bgCv = $("bg");
   const bctx = bgCv.getContext("2d");
   let bgW = 0, bgH = 0;
-  const BG_COLORS = ["rgba(167,139,250,", "rgba(103,232,249,", "rgba(251,191,36,", "rgba(244,114,182,", "rgba(255,255,255,"];
+
+  function themePalette() {
+    return document.documentElement.getAttribute("data-theme") === "light"
+      ? ["rgba(109,40,217,", "rgba(8,145,178,", "rgba(180,83,9,", "rgba(30,30,45,", "rgba(20,20,30,"]
+      : ["rgba(167,139,250,", "rgba(103,232,249,", "rgba(251,191,36,", "rgba(244,114,182,", "rgba(255,255,255,"];
+  }
+  let dust = [];
 
   function sizeBg() {
     bgW = bgCv.width = window.innerWidth;
@@ -24,9 +30,9 @@
   sizeBg();
 
   const dp = () => Math.max(18, Math.round((bgW * bgH) / 16000));
-  let dust = [];
   function spawnDust() {
     dust = [];
+    const pal = themePalette();
     const n = dp();
     for (let i = 0; i < n; i++) {
       dust.push({
@@ -36,7 +42,7 @@
         vx: (Math.random() - 0.5) * 0.22,
         a: 0.1 + Math.random() * 0.5,
         ph: Math.random() * Math.PI * 2,
-        c: BG_COLORS[(Math.random() * BG_COLORS.length) | 0]
+        c: pal[(Math.random() * pal.length) | 0]
       });
     }
   }
@@ -89,9 +95,9 @@
   const fmtShort = (s) => (s && s.length > 10 ? s.slice(0, 6) + "…" + s.slice(-4) : s || "—");
 
   const ROLE_TABLE = {
-    "175 навсегда-мес": { group: "Базовый", name: "Базовый · 175 ₽/мес" },
-    "250 на год":       { group: "VIP",     name: "VIP · 250 ₽/год" },
-    "450 навсегда":     { group: "Ultimate",name: "Ultimate · 450 ₽ навсегда" }
+    "250 на 3 месяца": { group: "Базовый", name: "Базовый · 250 ₽/3 месяца" },
+    "450 на год":      { group: "VIP",     name: "VIP · 450 ₽/1 год" },
+    "600 навсегда":    { group: "Ultimate",name: "Ultimate · 600 ₽ навсегда" }
   };
   const GROUP_CLS = {
     "User": "grp-user",
@@ -300,8 +306,8 @@
     if (!pendingBuy) return;
     const u = currentUser();
     if (!u) { $("buyOverlay").hidden = true; showAuth(); return; }
-    const forever = pendingBuy.key === "450 навсегда";
-    const months = { "175 навсегда-мес": 1, "250 на год": 12 }[pendingBuy.key];
+    const forever = pendingBuy.key === "600 навсегда";
+    const months = { "250 на 3 месяца": 3, "450 на год": 12 }[pendingBuy.key];
     u.sub = {
       key: pendingBuy.key,
       group: pendingBuy.group || "User",
@@ -322,7 +328,7 @@
 
   /* ---------- hwid reset (199 ₽) ---------- */
 
-  $("hwidBtn").addEventListener("click", () => {
+  function buyHwid() {
     const u = currentUser();
     if (!u) { toast("Войди в аккаунт для сброса HWID", "bad"); return; }
     if (u.hwidBoughtAt) {
@@ -333,7 +339,10 @@
     $("buyDesc").textContent = "Сбросит привязку устройства. Сможешь зайти с нового ПК.";
     pendingBuy = { hwid: true, price: "199" };
     $("buyOverlay").hidden = false;
-  });
+  }
+
+  $("hwidBtn").addEventListener("click", buyHwid);
+  $("hwidBuyBtn").addEventListener("click", buyHwid);
 
   /* ---------- overlays ---------- */
 
@@ -377,6 +386,17 @@
   }
 
   /* ---------- init ---------- */
+
+  function applyTheme(t) {
+    document.documentElement.setAttribute("data-theme", t);
+    try { localStorage.setItem("wizard.theme", t); } catch (e) {}
+    spawnDust();
+  }
+
+  $("themeBtn").addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+    applyTheme(cur === "light" ? "dark" : "light");
+  });
 
   $("year").textContent = new Date().getFullYear();
   refreshNav();
