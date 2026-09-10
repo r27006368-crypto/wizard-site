@@ -10,8 +10,10 @@
 </head>
 <body>
 
+<canvas id="bg" aria-hidden="true"></canvas>
+<div class="nebula a" aria-hidden="true"></div>
+<div class="nebula b" aria-hidden="true"></div>
 <div class="stars" aria-hidden="true"></div>
-<div class="moon" aria-hidden="true"></div>
 
 <header class="nav">
   <a class="logo" href="#top" aria-label="Wizard">
@@ -19,9 +21,10 @@
     <span>WIZARD</span>
   </a>
   <nav class="links">
-    <a href="#tariffs">Тарифы</a>
-    <a href="#download">Скачать</a>
     <a href="#support">Поддержка</a>
+    <a href="#tariffs" class="mid">Тарифы</a>
+    <a href="#download">Скачать</a>
+    <a href="#video">Видеообзор</a>
   </nav>
   <div class="auth">
     <button class="btn ghost" id="navProfileBtn" hidden>Профиль</button>
@@ -33,16 +36,12 @@
 
   <section class="hero">
     <div class="orb" aria-hidden="true"></div>
-    <h1 class="title">Добро пожаловать в <span class="grad">Wizard</span></h1>
+    <p class="eyebrow">премиальный Minecraft клиент</p>
+    <h1 class="title">Добро пожаловать в <span class="grad bob">Wizard</span></h1>
     <p class="subtitle">Магический инструментарий, чистая ваниль и максимум контроля. Один клик — и игра становится волшебной.</p>
     <div class="cta">
       <a class="btn primary big" href="#download">Скачать клиент</a>
       <a class="btn ghost big" href="#tariffs">Выбрать тариф</a>
-    </div>
-    <div class="hero-cards">
-      <div class="card mini"><span>✦</span><b>Профиль</b><small>вход через Google</small></div>
-      <div class="card mini"><span>⚡</span><b>HWID-защита</b><small>1 устройство</small></div>
-      <div class="card mini"><span>🛡</span><b>Роли</b><small>175 / 250 / 450 ₽</small></div>
     </div>
   </section>
 
@@ -101,6 +100,17 @@
     </div>
   </section>
 
+  <section class="section" id="video">
+    <h2 class="sec-title">Видеообзор</h2>
+    <p class="sec-sub">Авторский обзор Wizard — скоро</p>
+    <div class="video-box" id="videoBox">
+      <button class="play" id="playBtn" aria-label="Смотреть обзор">
+        <svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true"><path d="M8 5v14l11-7z" fill="#fff"/></svg>
+      </button>
+      <p class="video-label">Видео ещё не загружено</p>
+    </div>
+  </section>
+
   <section class="section" id="support">
     <h2 class="sec-title">Поддержка</h2>
     <p class="sec-sub">Вопросы по установке, оплате и HWID</p>
@@ -117,7 +127,6 @@
   <p>© <span id="year"></span> Wizard Client. Не аффилирован с Mojang / Microsoft.</p>
 </footer>
 
-<!-- Модалка авторизации -->
 <div class="overlay" id="authOverlay" hidden>
   <div class="modal">
     <button class="close" id="closeAuth" aria-label="Закрыть">✕</button>
@@ -157,7 +166,6 @@
   </div>
 </div>
 
-<!-- Покупка -->
 <div class="overlay" id="buyOverlay" hidden>
   <div class="modal small">
     <button class="close" id="closeBuy" aria-label="Закрыть">✕</button>
@@ -170,7 +178,6 @@
 
 <canvas id="burst" aria-hidden="true"></canvas>
 <div class="toast" id="toast" hidden></div>
-<div class="modal-bg" id="modalBg" hidden></div>
 
 <script src="assets/script.js"></script>
 </body>

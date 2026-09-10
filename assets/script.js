@@ -10,6 +10,60 @@
   const burst = $("burst");
   const ctx = burst.getContext("2d");
 
+  /* ---------- moving background ---------- */
+
+  const bgCv = $("bg");
+  const bctx = bgCv.getContext("2d");
+  let bgW = 0, bgH = 0;
+  const BG_COLORS = ["rgba(167,139,250,", "rgba(103,232,249,", "rgba(251,191,36,", "rgba(244,114,182,", "rgba(255,255,255,"];
+
+  function sizeBg() {
+    bgW = bgCv.width = window.innerWidth;
+    bgH = bgCv.height = window.innerHeight;
+  }
+  sizeBg();
+
+  const dp = () => Math.max(18, Math.round((bgW * bgH) / 16000));
+  let dust = [];
+  function spawnDust() {
+    dust = [];
+    const n = dp();
+    for (let i = 0; i < n; i++) {
+      dust.push({
+        x: Math.random() * bgW,
+        y: Math.random() * bgH,
+        r: 0.6 + Math.random() * 2.2,
+        vy: 0.15 + Math.random() * 0.55,
+        vx: (Math.random() - 0.5) * 0.22,
+        a: 0.1 + Math.random() * 0.5,
+        ph: Math.random() * Math.PI * 2,
+        c: BG_COLORS[(Math.random() * BG_COLORS.length) | 0]
+      });
+    }
+  }
+  spawnDust();
+
+  function bgTick() {
+    bctx.clearRect(0, 0, bgW, bgH);
+    const t = performance.now() / 1000;
+    for (const p of dust) {
+      p.y -= p.vy;
+      p.x += p.vx + Math.sin(t + p.ph) * 0.12;
+      if (p.y < -8) { p.y = bgH + 8; p.x = Math.random() * bgW; }
+      if (p.x < -8) p.x = bgW + 8;
+      if (p.x > bgW + 8) p.x = -8;
+      const tw = 0.6 + 0.4 * Math.sin(t * 1.6 + p.ph);
+      bctx.beginPath();
+      bctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      bctx.fillStyle = p.c + (p.a * tw).toFixed(3) + ")";
+      bctx.fill();
+    }
+    requestAnimationFrame(bgTick);
+  }
+  requestAnimationFrame(bgTick);
+
+  window.addEventListener("resize", () => { sizeBg(); spawnDust(); });
+
   let pendingGoogle = null;
   let pendingBuy = null;
 
@@ -314,6 +368,12 @@
     e.preventDefault();
     if (!currentUser()) { showAuth(); toast("Скачивание доступно после входа", "bad"); return; }
     toast("Начинается скачивание Wizard Launcher…", "good");
+  });
+
+  /* ---------- видеообзор (заглушка) ---------- */
+
+  $("playBtn").addEventListener("click", () => {
+    toast("Видео скоро появится — как только дашь ссылку, вставлю ролик сюда ✨", "good");
   });
 
   /* ---------- init ---------- */
