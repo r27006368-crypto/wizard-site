@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wizard — твои идеальный клиент</title>
-<meta name="description" content="Wizard — премиальный Minecraft клиент. Регистрация, профиль, тарифы, сброс HWID.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 5 27h4l2-5h10l2 5h4L16 2Zm0 9 3 7h-6l3-7Z' fill='%237c3aed'/%3E%3C/svg%3E">
+<title>Wizard — твой премиум клиент</title>
+<meta name="description" content="Wizard — премиум чит клиент для Minecraft. Регистрация, профиль, тарифы, ключи, сброс HWID.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%237c3aed'/%3E%3Ctext x='16' y='23' font-size='20' font-weight='900' text-anchor='middle' fill='white' font-family='Arial'>W</text%3E%3C/svg%3E">
 <link rel="stylesheet" href="assets/styles.css">
 <script>
   try {
@@ -24,7 +24,7 @@
 <header class="nav">
   <div class="brand">
     <a class="logo" href="#top" aria-label="Wizard">
-      <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><path d="M16 2 5 27h4l2-5h10l2 5h4L16 2Zm0 9 3 7h-6l3-7Z" fill="currentColor"/></svg>
+      <span class="w-badge">W</span>
       <span>WIZARD</span>
     </a>
     <button class="theme-toggle" id="themeBtn" aria-label="Переключить тему">
@@ -35,6 +35,7 @@
   <nav class="links">
     <a href="#features">Возможности</a>
     <a href="#tariffs" class="mid">Тарифы</a>
+    <a href="#profile">Профиль</a>
     <a href="#video">Видеообзор</a>
     <a href="#socials">Соцсети</a>
   </nav>
@@ -47,7 +48,7 @@
 <main id="top">
 
   <section class="hero">
-    <p class="eyebrow">Wizard — твои идеальный клиент</p>
+    <p class="eyebrow">Wizard — твой премиум клиент</p>
     <h1 class="title"><span class="grad">Wizard</span></h1>
     <p class="subtitle">Клиент для игры в Minecraft</p>
     <div class="cta">
@@ -79,7 +80,7 @@
         <ul>
           <li>Основные функции клиента</li>
           <li>Обновления</li>
-          <li>Роль «Базовый»</li>
+          <li>Ключ активации клиента</li>
         </ul>
         <button class="btn primary" data-buy="250 на 3 месяца" data-price="250">Купить</button>
       </article>
@@ -89,8 +90,8 @@
         <div class="price">450 ₽<small>/ 1 год</small></div>
         <ul>
           <li>Всё из Базового</li>
-          <li>Приоритетная поддержка</li>
-          <li>Роль «VIP»</li>
+          <li>Ключ активации клиента</li>
+          <li>Расширенные функции и приоритет в поддержке</li>
         </ul>
         <button class="btn primary" data-buy="450 на год" data-price="450">Купить</button>
       </article>
@@ -100,8 +101,8 @@
         <div class="price">600 ₽<small>/ навсегда</small></div>
         <ul>
           <li>Всё навсегда</li>
+          <li>Ключ активации клиента</li>
           <li>Эксклюзивные настройки и шейдеры</li>
-          <li>Роль «Ultimate»</li>
         </ul>
         <button class="btn primary" data-buy="600 навсегда" data-price="600">Купить</button>
       </article>
@@ -116,6 +117,56 @@
         </ul>
         <button class="btn ghost" id="hwidBuyBtn">Купить сброс</button>
       </article>
+    </div>
+  </section>
+
+  <section class="section" id="profile">
+    <h2 class="sec-title">Профиль</h2>
+    <p class="sec-sub">Твой аккаунт Wizard</p>
+
+    <div class="profile-empty" id="profileNeedLogin">
+      <p>Сначала <a href="#" id="profLoginLink">войди</a> или <a href="#" id="profRegLink">зарегистрируйся</a>, чтобы открыть профиль.</p>
+    </div>
+
+    <div class="profile-card" id="profileCard" hidden>
+      <div class="p-head">
+        <div class="avatar" id="avatar">W</div>
+        <div>
+          <h3 id="pnick">—</h3>
+          <span class="group-badge grp-user" id="prole">User</span>
+        </div>
+      </div>
+
+      <div class="p-list">
+        <div><span>Логин</span><b id="plogin">—</b></div>
+        <div><span>Роль</span><b id="prole2">User</b></div>
+        <div><span>Срок</span><b id="psub">Нет подписки</b></div>
+        <div><span>Последний вход</span><b id="plast">—</b></div>
+        <div><span>E-mail</span><b id="pemail">—</b></div>
+        <div><span>HWID</span><b id="phwid">HWID не активен</b></div>
+      </div>
+
+      <div class="p-actions">
+        <button class="btn primary w100" id="dlClient">Скачать клиент</button>
+        <button class="btn ghost w100" id="buyClient">Купить клиент</button>
+
+        <details class="p-panel">
+          <summary>Сменить пароль</summary>
+          <div class="field"><input id="oldPass" type="password" placeholder="Старый пароль" autocomplete="current-password"></div>
+          <div class="field"><input id="newPass1" type="password" placeholder="Новый пароль" autocomplete="new-password"></div>
+          <div class="field"><input id="newPass2" type="password" placeholder="Новый пароль ещё раз" autocomplete="new-password"></div>
+          <button class="btn ghost" id="changePassBtn">Сменить пароль</button>
+        </details>
+
+        <details class="p-panel">
+          <summary>Ключи</summary>
+          <div class="field"><input id="keyInput" placeholder="Впиши ключ из AdminPanel"></div>
+          <button class="btn ghost" id="activateKeyBtn">Активировать ключ</button>
+        </details>
+
+        <button class="btn ghost w100" id="adminBtn" hidden>Админ-панель</button>
+        <button class="btn danger w100" id="logoutBtn">Выйти</button>
+      </div>
     </div>
   </section>
 
@@ -151,7 +202,7 @@
   <div class="modal">
     <button class="close" id="closeAuth" aria-label="Закрыть">✕</button>
     <div class="modal-head">
-      <svg viewBox="0 0 32 32" width="40" height="40" aria-hidden="true"><path d="M16 2 5 27h4l2-5h10l2 5h4L16 2Zm0 9 3 7h-6l3-7Z" fill="#7c3aed"/></svg>
+      <span class="w-badge">W</span>
       <h3 id="authTitle">Вход в аккаунт</h3>
     </div>
 
@@ -162,11 +213,11 @@
 
     <form id="regForm" class="auth-form">
       <div class="field">
-        <label for="nickInput">Ник</label>
+        <label for="nickInput">Логин (ник)</label>
         <input id="nickInput" maxlength="20" placeholder="Впишите ник" autocomplete="nickname">
       </div>
       <div class="field">
-        <label for="emailInput">Почта</label>
+        <label for="emailInput">E-mail</label>
         <input id="emailInput" type="email" placeholder="r27006368@gmail.com" autocomplete="email">
       </div>
       <div class="field">
@@ -191,21 +242,6 @@
       </div>
       <button type="submit" class="btn primary w100" id="loginSubmit">Войти</button>
     </form>
-
-    <div class="profile-box" id="profileBox" hidden>
-      <div class="avatar" id="avatar">W</div>
-      <h3 id="profileNick">—</h3>
-      <p class="muted" id="profileEmail">—</p>
-      <span class="group-badge" id="profileRole">User</span>
-      <table class="kv">
-        <tr><td>Ник</td><td id="profileNick2">—</td></tr>
-        <tr><td>Группа</td><td id="profileGroup">User</td></tr>
-        <tr><td>Почта</td><td id="profileGuestEmail">—</td></tr>
-        <tr><td>Устройство (HWID)</td><td id="profileHwid">—</td></tr>
-      </table>
-      <button class="btn ghost" id="hwidBtn">Сброс HWID — 199 ₽</button>
-      <button class="btn danger" id="logoutBtn">Выйти</button>
-    </div>
   </div>
 </div>
 
@@ -214,8 +250,54 @@
     <button class="close" id="closeBuy" aria-label="Закрыть">✕</button>
     <div class="modal-head"><h3 id="buyTitle">Оформление</h3></div>
     <p class="muted" id="buyDesc"></p>
-    <div class="row"><button class="btn primary" id="payBtn">Оплатить</button></div>
-    <p class="muted tiny" id="buyNote">Демо-режим: реальная оплата не выполняется. Покупка зачислится на аккаунт.</p>
+    <div class="field">
+      <label for="promoInput">Промокод</label>
+      <input id="promoInput" placeholder="Если есть промокод — впиши сюда">
+    </div>
+    <button class="btn ghost w100" id="applyPromo">Применить промокод</button>
+    <div class="final-price" id="finalPrice"></div>
+    <div class="row"><button class="btn primary w100" id="payBtn">Оплатить</button></div>
+    <p class="muted tiny" id="buyNote">Демо-режим: реальная оплата не выполняется.</p>
+  </div>
+</div>
+
+<div class="overlay" id="adminOverlay" hidden>
+  <div class="modal admin-modal">
+    <button class="close" id="closeAdmin" aria-label="Закрыть">✕</button>
+
+    <div class="admin-gate" id="adminGate">
+      <div class="modal-head"><span class="w-badge">A</span><h3>Админ-панель</h3></div>
+      <div class="field">
+        <label for="adminWord">Кодовое слово</label>
+        <input id="adminWord" placeholder="Введи кодовое слово" type="password">
+      </div>
+      <button class="btn primary w100" id="adminCodeOk">Войти в админку</button>
+    </div>
+
+    <div class="admin-main" id="adminMain" hidden>
+      <div class="modal-head"><span class="w-badge">A</span><h3>Админ-панель · NaitNiks</h3></div>
+      <div class="auth-tabs" id="adminTabs">
+        <button class="tab active" data-amt="users">Пользователи</button>
+        <button class="tab" data-amt="keys">Ключи</button>
+        <button class="tab" data-amt="promos">Промокоды</button>
+      </div>
+
+      <div id="adminUsers" class="admin-scroll"></div>
+
+      <div id="adminKeys" class="admin-scroll" hidden>
+        <button class="btn primary w100" id="genKeyBtn">Сгенерировать ключ</button>
+        <div id="keysList" class="admin-list"></div>
+      </div>
+
+      <div id="adminPromos" class="admin-scroll" hidden>
+        <div class="field">
+          <label for="promoPercent">Процент скидки</label>
+          <input id="promoPercent" type="number" min="1" max="100" placeholder="например 25">
+        </div>
+        <button class="btn primary w100" id="genPromoBtn">Сгенерировать промокод</button>
+        <div id="promosList" class="admin-list"></div>
+      </div>
+    </div>
   </div>
 </div>
 

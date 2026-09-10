@@ -1,26 +1,90 @@
-(() => {
+(function () {
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  const LS_USERS = "wizard.users";
-  const LS_SESSION = "wizard.session";
-  const LS_HWID = "wizard.hwid";
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
-  const toastEl = $("toast");
-  const burst = $("burst");
-  const ctx = burst.getContext("2d");
+  const ADMIN_NICK = "NaitNiks";
+  const ADMIN_WORD = "Valera";
+  const ROLE_TABLE = ["Dev", "Tex.Tester", "Media", "User"];
+  const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
 
-  /* ---------- moving background ---------- */
+  const toast = (msg) => {
+    const t = $("toast");
+    t.textContent = msg;
+    t.hidden = false;
+    t.classList.add("on");
+    clearTimeout(t._h);
+    t._h = setTimeout(() => { t.classList.remove("on"); t.hidden = true; }, 2600);
+  };
+
+  const hash = (s) => {
+    let h = 0x811c9dc5;
+    s = "wz::" + s;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    let out = (h >>> 0).toString(36);
+    while (out.length < 8) out += "0";
+    return out;
+  };
+
+  const fmtDate = (ts) => {
+    if (!ts) return "—";
+    const d = new Date(ts);
+    const p = (n) => String(n).padStart(2, "0");
+    return p(d.getDate()) + "." + p(d.getMonth() + 1) + "." + String(d.getFullYear()).slice(2);
+  };
+
+  const fmtDateTime = (ts) => {
+    if (!ts) return "—";
+    const d = new Date(ts);
+    const p = (n) => String(n).padStart(2, "0");
+    return p(d.getDate()) + "." + p(d.getMonth() + 1) + "." + d.getFullYear() + ", " + p(d.getHours()) + ":" + p(d.getMinutes());
+  };
+
+  const addMonths = (ts, m) => {
+    const d = new Date(ts);
+    return new Date(d.getFullYear(), d.getMonth() + m, d.getDate()).getTime();
+  };
+
+  const isActive = (u) => !!(u.sub && (u.sub.forever || u.sub.to > Date.now()));
+
+  const storage = {
+    get(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+
+  let users = storage.get("wizard.users", []);
+  let keys = storage.get("wizard.keys", []);
+  let promos = storage.get("wizard.promos", []);
+  let cur = null;
+
+  const saveUsers = () => storage.set("wizard.users", users);
+  const saveKeys = () => storage.set("wizard.keys", keys);
+  const savePromos = () => storage.set("wizard.promos", promos);
+
+  const saveSession = (u) => { cur = u; try { if (u) localStorage.setItem("wizard.session", u.nick); else localStorage.removeItem("wizard.session"); } catch (e) {} };
+  (() => {
+    const saved = (() => { try { return localStorage.getItem("wizard.session"); } catch (e) { return null; } })();
+    if (saved) cur = users.find((u) => u.nick === saved) || null;
+  })();
+
+  const rand4 = () => Math.random().toString(36).slice(2, 6).toUpperCase();
+
+  /* ---------- bg ---------- */
 
   const bgCv = $("bg");
-  const bctx = bgCv.getContext("2d");
+  const ctx = bgCv.getContext("2d");
   let bgW = 0, bgH = 0;
 
   function themePalette() {
     return document.documentElement.getAttribute("data-theme") === "light"
-      ? ["rgba(109,40,217,", "rgba(8,145,178,", "rgba(180,83,9,", "rgba(30,30,45,", "rgba(20,20,30,"]
+      ? ["rgba(124,58,237,", "rgba(8,145,178,", "rgba(180,83,9,", "rgba(93,30,160,", "rgba(30,30,45,"]
       : ["rgba(167,139,250,", "rgba(103,232,249,", "rgba(251,191,36,", "rgba(244,114,182,", "rgba(255,255,255,"];
   }
+
   let dust = [];
 
   function sizeBg() {
@@ -30,6 +94,7 @@
   sizeBg();
 
   const dp = () => Math.max(18, Math.round((bgW * bgH) / 16000));
+
   function spawnDust() {
     dust = [];
     const pal = themePalette();
@@ -48,356 +113,406 @@
   }
   spawnDust();
 
-  function bgTick() {
-    bctx.clearRect(0, 0, bgW, bgH);
-    const t = performance.now() / 1000;
+  function tickBg() {
+    ctx.clearRect(0, 0, bgW, bgH);
     for (const p of dust) {
-      p.y -= p.vy;
-      p.x += p.vx + Math.sin(t + p.ph) * 0.12;
-      if (p.y < -8) { p.y = bgH + 8; p.x = Math.random() * bgW; }
-      if (p.x < -8) p.x = bgW + 8;
-      if (p.x > bgW + 8) p.x = -8;
-      const tw = 0.6 + 0.4 * Math.sin(t * 1.6 + p.ph);
-      bctx.beginPath();
-      bctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      bctx.fillStyle = p.c + (p.a * tw).toFixed(3) + ")";
-      bctx.fill();
+      p.y -= p.vy; p.x += p.vx; p.ph += 0.02;
+      if (p.y < -6) { p.y = bgH + 6; p.x = Math.random() * bgW; }
+      if (p.x < -6) p.x = bgW + 6; if (p.x > bgW + 6) p.x = -6;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = p.c + (0.35 + 0.65 * Math.abs(Math.sin(p.ph)) * Math.min(1, p.a + 0.4)) + ")";
+      ctx.fill();
     }
-    requestAnimationFrame(bgTick);
+    requestAnimationFrame(tickBg);
   }
-  requestAnimationFrame(bgTick);
+  tickBg();
 
   window.addEventListener("resize", () => { sizeBg(); spawnDust(); });
 
-  /* ---------- helpers ---------- */
-
-  const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-  const hash = (s) => {
-    let h = 5381;
-    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
-    return ("00000000" + h.toString(16)).slice(-8).toUpperCase();
-  };
-  const getUsers = () => {
-    try { return JSON.parse(localStorage.getItem(LS_USERS)) || []; } catch { return []; }
-  };
-  const saveUsers = (u) => localStorage.setItem(LS_USERS, JSON.stringify(u));
-  const currentEmail = () => localStorage.getItem(LS_SESSION);
-  const currentUser = () => getUsers().find((u) => u.email === currentEmail()) || null;
-  const deviceHwid = () => {
-    let hw = localStorage.getItem(LS_HWID);
-    if (!hw) {
-      hw = hash(navigator.userAgent + navigator.language + uid());
-      localStorage.setItem(LS_HWID, hw);
-    }
-    return hw;
-  };
-  const fmtDate = (ts) => new Date(ts).toLocaleDateString("ru-RU");
-  const fmtShort = (s) => (s && s.length > 10 ? s.slice(0, 6) + "…" + s.slice(-4) : s || "—");
-
-  const ROLE_TABLE = {
-    "250 на 3 месяца": { group: "Базовый", name: "Базовый · 250 ₽/3 месяца" },
-    "450 на год":      { group: "VIP",     name: "VIP · 450 ₽/1 год" },
-    "600 навсегда":    { group: "Ultimate",name: "Ultimate · 600 ₽ навсегда" }
-  };
-  const GROUP_CLS = {
-    "User": "grp-user",
-    "Базовый": "grp-basic",
-    "VIP": "grp-vip",
-    "Ultimate": "grp-ult"
-  };
-
-  /* ---------- toast & burst ---------- */
-
-  let toastTimer = null;
-  function toast(msg, kind) {
-    toastEl.textContent = msg;
-    toastEl.hidden = false;
-    toastEl.className = "toast " + (kind || "");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toastEl.hidden = true; }, 3200);
-  }
-
-  function burstFx(x, y) {
-    burst.width = window.innerWidth;
-    burst.height = window.innerHeight;
-    const N = 120;
-    const parts = [];
-    const palette = ["#8b5cf6", "#67e8f9", "#fbbf24", "#f472b6", "#ffffff"];
-    for (let i = 0; i < N; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const sp = 2 + Math.random() * 7;
-      parts.push({
-        x: x, y: y,
-        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 3,
-        g: 0.16 + Math.random() * 0.12, life: 1,
-        size: 2 + Math.random() * 4,
-        col: palette[(Math.random() * palette.length) | 0]
-      });
-    }
-    let raf;
-    const step = () => {
-      ctx.clearRect(0, 0, burst.width, burst.height);
-      let alive = false;
-      for (const p of parts) {
-        p.x += p.vx; p.y += p.vy; p.vy += p.g; p.life -= 0.014; p.vx *= 0.985;
-        if (p.life <= 0) continue;
-        alive = true;
-        ctx.globalAlpha = Math.max(0, p.life);
-        ctx.fillStyle = p.col;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-      if (alive) raf = requestAnimationFrame(step);
-      else { cancelAnimationFrame(raf); ctx.clearRect(0, 0, burst.width, burst.height); }
-    };
-    requestAnimationFrame(step);
-  }
-
-  /* ---------- auth ui ---------- */
-
-  const authOverlay = $("authOverlay");
-  const regForm = $("regForm");
-  const loginForm = $("loginForm");
-  const profileBox = $("profileBox");
-  const nickInput = $("nickInput");
-  const emailInput = $("emailInput");
-  const passInput = $("passInput");
-  const pass2Input = $("pass2Input");
-  const loginUser = $("loginUser");
-  const loginPass = $("loginPass");
-  let activeMode = "reg";
-
-  function setMode(mode) {
-    activeMode = mode;
-    document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.mode === mode));
-    regForm.hidden = mode !== "reg";
-    loginForm.hidden = mode !== "login";
-  }
-
-  document.querySelectorAll(".tab").forEach((t) =>
-    t.addEventListener("click", () => setMode(t.dataset.mode)));
-
-  function showAuth() {
-    refreshAuthUI();
-    authOverlay.hidden = false;
-    setTimeout(() => (activeMode === "reg" ? nickInput : loginUser).focus(), 60);
-  }
-
-  function refreshAuthUI() {
-    const asUser = !!currentUser();
-    const at = $("authTabs");
-    regForm.hidden = asUser || activeMode !== "reg";
-    loginForm.hidden = asUser || activeMode !== "login";
-    profileBox.hidden = !asUser;
-    at.hidden = asUser;
-    $("navLoginBtn").hidden = asUser;
-    $("navProfileBtn").hidden = !asUser;
-    if (asUser) renderProfile();
-  }
-
-  const groupText = (g) => g || "User";
-
-  function renderProfile() {
-    const u = currentUser();
-    if (!u) return;
-    const nick = u.nick;
-    $("avatar").textContent = nick.charAt(0).toUpperCase();
-    $("profileNick").textContent = nick;
-    $("profileEmail").textContent = u.email;
-    const grp = groupText(u.group);
-    const badge = $("profileRole");
-    badge.textContent = grp;
-    badge.className = "group-badge " + (GROUP_CLS[grp] || "grp-user");
-    $("profileNick2").textContent = nick;
-    $("profileGroup").textContent = grp;
-    $("profileGuestEmail").textContent = u.email;
-    $("profileHwid").textContent = fmtShort(u.hwid || deviceHwid());
-  }
-
-  /* ---------- registration ---------- */
-
-  regForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const nick = nickInput.value.trim();
-    const email = emailInput.value.trim().toLowerCase();
-    const pass = passInput.value;
-    const pass2 = pass2Input.value;
-
-    if (!nick) return toast("Впишите ник ниже", "bad");
-    if (!/^[\p{L}\p{N}_ .\-]{2,20}$/u.test(nick)) return toast("Ник: от 2 до 20 символов", "bad");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return toast("Почта некорректная", "bad");
-    if (pass.length < 6) return toast("Пароль: минимум 6 символов", "bad");
-    if (pass !== pass2) return toast("Пароли не совпадают", "bad");
-
-    const users = getUsers();
-    if (users.some((u) => u.email === email)) return toast("Такая почта уже зарегистрирована", "bad");
-    if (users.some((u) => u.nick.toLowerCase() === nick.toLowerCase())) return toast("Такой ник уже занят", "bad");
-
-    const user = {
-      nick, email,
-      pass: hash(pass),
-      group: "User",
-      sub: null,
-      hwid: null,
-      hwidBoughtAt: null,
-      createdAt: Date.now()
-    };
-    users.push(user);
-    saveUsers(users);
-    localStorage.setItem(LS_SESSION, email);
-    authOverlay.hidden = true;
-    refreshAuthUI();
-    celebrate("Добро пожаловать, " + nick + "! Группа: User ✨");
-  });
-
-  /* ---------- login (ник или почта + пароль) ---------- */
-
-  loginForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const id = loginUser.value.trim().toLowerCase();
-    const pass = loginPass.value;
-    if (!id) return toast("Введи ник или почту", "bad");
-    const byEmail = (u) => u.email === id;
-    const byNick = (u) => u.nick.toLowerCase() === id;
-    const user = getUsers().find((u) => byEmail(u) || byNick(u));
-    if (!user || user.pass !== hash(pass)) {
-      return toast("Неверный логин или пароль", "bad");
-    }
-    localStorage.setItem(LS_SESSION, user.email);
-    authOverlay.hidden = true;
-    loginUser.value = "";
-    loginPass.value = "";
-    refreshAuthUI();
-    toast("С возвращением, " + user.nick + "!", "good");
-  });
-
-  /* ---------- logout ---------- */
-
-  $("logoutBtn").addEventListener("click", () => {
-    localStorage.removeItem(LS_SESSION);
-    authOverlay.hidden = true;
-    refreshAuthUI();
-    toast("Ты вышел из аккаунта");
-  });
-
-  /* ---------- buy ---------- */
-
-  document.querySelectorAll("[data-buy]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const what = ROLE_TABLE[btn.dataset.buy];
-      if (!currentUser()) {
-        pendingBuy = { key: btn.dataset.buy, price: btn.dataset.price, group: what && what.group };
-        toast("Нужен аккаунт — зарегистрируйся или войди", "bad");
-        showAuth();
-        return;
-      }
-      $("buyTitle").textContent = (what ? what.group : btn.dataset.buy) + " — " + btn.dataset.price + " ₽";
-      $("buyDesc").textContent = btn.dataset.buy;
-      pendingBuy = { key: btn.dataset.buy, price: btn.dataset.price, group: what && what.group };
-      $("buyOverlay").hidden = false;
-    });
-  });
-
-  let pendingBuy = null;
-
-  $("payBtn").addEventListener("click", () => {
-    if (!pendingBuy) return;
-    const u = currentUser();
-    if (!u) { $("buyOverlay").hidden = true; showAuth(); return; }
-    const forever = pendingBuy.key === "600 навсегда";
-    const months = { "250 на 3 месяца": 3, "450 на год": 12 }[pendingBuy.key];
-    u.sub = {
-      key: pendingBuy.key,
-      group: pendingBuy.group || "User",
-      endsAt: forever ? null : Date.now() + months * 30 * 24 * 3600 * 1000,
-      forever
-    };
-    u.group = u.sub.group;
-    if (!u.hwid) u.hwid = deviceHwid();
-    const users = getUsers();
-    const idx = users.findIndex((x) => x.email === u.email);
-    if (idx >= 0) users[idx] = u;
-    saveUsers(users);
-    $("buyOverlay").hidden = true;
-    pendingBuy = null;
-    refreshAuthUI();
-    celebrate("Оплата зачислена. Твоя группа: " + u.group + " 🎉");
-  });
-
-  /* ---------- hwid reset (199 ₽) ---------- */
-
-  function buyHwid() {
-    const u = currentUser();
-    if (!u) { toast("Войди в аккаунт для сброса HWID", "bad"); return; }
-    if (u.hwidBoughtAt) {
-      toast("Сброс HWID уже куплен — повторный недоступен", "bad");
-      return;
-    }
-    $("buyTitle").textContent = "Сброс HWID — 199 ₽";
-    $("buyDesc").textContent = "Сбросит привязку устройства. Сможешь зайти с нового ПК.";
-    pendingBuy = { hwid: true, price: "199" };
-    $("buyOverlay").hidden = false;
-  }
-
-  $("hwidBtn").addEventListener("click", buyHwid);
-  $("hwidBuyBtn").addEventListener("click", buyHwid);
-
-  /* ---------- overlays ---------- */
-
-  function closeAuth() {
-    authOverlay.hidden = true;
-    nickInput.value = ""; emailInput.value = ""; passInput.value = ""; pass2Input.value = "";
-  }
-
-  function refreshNav() {
-    const asUser = !!currentUser();
-    $("navLoginBtn").hidden = asUser;
-    $("navProfileBtn").hidden = !asUser;
-  }
-
-  $("closeAuth").addEventListener("click", closeAuth);
-  $("closeBuy").addEventListener("click", () => { $("buyOverlay").hidden = true; });
-  $("navLoginBtn").addEventListener("click", () => { setMode("login"); showAuth(); });
-  $("navProfileBtn").addEventListener("click", showAuth);
-  $("heroRegBtn").addEventListener("click", () => { setMode("reg"); showAuth(); });
-
-  for (const ov of [authOverlay, $("buyOverlay")]) {
-    ov.addEventListener("click", (e) => { if (e.target === ov) ov.hidden = true; });
-  }
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      authOverlay.hidden = true;
-      $("buyOverlay").hidden = true;
-    }
-  });
-
-  /* ---------- видеообзор (заглушка) ---------- */
-
-  $("playBtn").addEventListener("click", () => {
-    toast("Видео скоро появится — как только дашь ссылку, вставлю ролик сюда ✨", "good");
-  });
-
-  function celebrate(msg) {
-    burstFx(window.innerWidth / 2, window.innerHeight / 2);
-    toast(msg, "good");
-  }
-
-  /* ---------- init ---------- */
+  /* ---------- theme ---------- */
 
   function applyTheme(t) {
     document.documentElement.setAttribute("data-theme", t);
-    try { localStorage.setItem("wizard.theme", t); } catch (e) {}
+    storage.set("wizard.theme", t);
     spawnDust();
   }
 
   $("themeBtn").addEventListener("click", () => {
-    const cur = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
-    applyTheme(cur === "light" ? "dark" : "light");
+    const curT = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+    applyTheme(curT === "light" ? "dark" : "light");
   });
 
+  /* ---------- auth ---------- */
+
+  let activeMode = "reg";
+  const switchMode = (m) => {
+    activeMode = m;
+    $("authTitle").textContent = m === "reg" ? "Регистрация" : "Вход в аккаунт";
+    $("regForm").hidden = m !== "reg";
+    $("loginForm").hidden = m !== "login";
+    $$("#authTabs .tab").forEach((t) => t.classList.toggle("active", t.dataset.mode === m));
+  };
+
+  $$("#authTabs .tab").forEach((t) => t.addEventListener("click", () => switchMode(t.dataset.mode)));
+
+  const openAuth = (mode) => { switchMode(mode || activeMode); $("authOverlay").hidden = false; };
+  const closeAuth = () => { $("authOverlay").hidden = true; };
+
+  $("heroRegBtn").addEventListener("click", () => openAuth("reg"));
+  $("navLoginBtn").addEventListener("click", () => { if (cur) doLogout(); else openAuth("login"); });
+  $("closeAuth").addEventListener("click", closeAuth);
+  $("profLoginLink").addEventListener("click", (e) => { e.preventDefault(); openAuth("login"); });
+  $("profRegLink").addEventListener("click", (e) => { e.preventDefault(); openAuth("reg"); });
+
+  $("navProfileBtn").addEventListener("click", () => {
+    document.getElementById("profile").scrollIntoView({ behavior: "smooth" });
+  });
+
+  $("regForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const nick = $("nickInput").value.trim();
+    const email = $("emailInput").value.trim();
+    const p1 = $("passInput").value;
+    const p2 = $("pass2Input").value;
+
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(nick)) return toast("Логин: 3–20 символов, буквы/цифры/подчёркивание");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast("Введи настоящую почту (например r27006368@gmail.com)");
+    if (p1.length < 4) return toast("Пароль слишком короткий");
+    if (p1 !== p2) return toast("Пароли не совпадают");
+    if (users.some((u) => u.nick.toLowerCase() === nick.toLowerCase())) return toast("Такой логин уже занят");
+    if (users.some((u) => u.email.toLowerCase() === email.toLowerCase())) return toast("Такая почта уже занята");
+
+    const now = Date.now();
+    const role = nick.toLowerCase() === ADMIN_NICK.toLowerCase() ? "Dev" : "User";
+    const u = { nick, email, pass: hash(p1), role, createdAt: now, hwid: null, sub: null, lastLogin: now, keys: [], promos: [] };
+    users.push(u); saveUsers(); saveSession(u);
+
+    toast("Аккаунт создан. Добро пожаловать, " + nick + "!");
+    closeAuth(); afterLogin(u);
+  });
+
+  $("loginForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const id = $("loginUser").value.trim();
+    const p = $("loginPass").value;
+    const u = users.find((x) => x.nick.toLowerCase() === id.toLowerCase() || x.email.toLowerCase() === id.toLowerCase());
+    if (!u) return toast("Такого аккаунта нет. Сначала зарегистрируйся");
+    if (u.pass !== hash(p)) return toast("Неверный пароль");
+    u.lastLogin = Date.now(); saveUsers(); saveSession(u);
+    toast("Вход выполнен. Привет, " + u.nick + "!");
+    closeAuth(); afterLogin(u);
+  });
+
+  function afterLogin(u) {
+    refreshNav();
+    renderProfile();
+    document.getElementById("profile").scrollIntoView({ behavior: "smooth" });
+  }
+
+  function doLogout() {
+    saveSession(null);
+    refreshNav();
+    hideProfile();
+    toast("Ты вышел из аккаунта");
+  }
+  $("logoutBtn").addEventListener("click", doLogout);
+
+  /* ---------- profile ---------- */
+
+  function subText(u) {
+    if (!u.sub) return "Нет подписки";
+    if (u.sub.forever) return "от " + fmtDate(u.sub.from) + " — навсегда";
+    if (u.sub.to > Date.now()) { const d = (u.sub.to - Date.now()) / MONTH_MS; return "от " + fmtDate(u.sub.from) + " до " + fmtDate(u.sub.to) + " (осталось ~" + Math.max(1, Math.ceil(d)) + " мес.)"; }
+    return "от " + fmtDate(u.sub.from) + " до " + fmtDate(u.sub.to) + " — истёк " + fmtDate(u.sub.to);
+  }
+
+  const roleCls = (r) => "grp-" + String(r).toLowerCase().replace(".", "");
+  let CUR_DETAIL = -1;
+
+  function renderProfile() {
+    if (!cur) { hideProfile(); return; }
+    $("profileNeedLogin").hidden = true;
+    $("profileCard").hidden = false;
+    $("pnick").textContent = cur.nick;
+    $("plogin").textContent = cur.nick;
+    $("pemail").textContent = cur.email;
+    $("plast").textContent = fmtDateTime(cur.lastLogin);
+    $("phwid").textContent = cur.hwid || "HWID не активен";
+
+    const r2 = $("prole");
+    r2.textContent = cur.role;
+    r2.className = "group-badge " + roleCls(cur.role);
+    $("prole2").textContent = cur.role;
+
+    const a = $("avatar");
+    const wh = cur.nick.trim()[0] || "W";
+    a.textContent = wh;
+    a.style.background = "linear-gradient(135deg,#7c3aed,#06b6d4)";
+
+    $("psub").textContent = subText(cur);
+
+    const dl = $("dlClient");
+    if (isActive(cur)) { dl.textContent = "Скачать клиент"; dl.classList.remove("disabled"); }
+    else { dl.textContent = "Купить клиент → Скачать"; dl.classList.add("disabled"); }
+
+    $("adminBtn").hidden = cur.nick.toLowerCase() !== ADMIN_NICK.toLowerCase();
+  }
+
+  function hideProfile() {
+    $("profileNeedLogin").hidden = false;
+    $("profileCard").hidden = true;
+  }
+
+  /* ---------- buy ---------- */
+
+  let pending = null;
+  let appliedPromo = null;
+
+  function openBuy(title, desc, price, months, forever) {
+    appliedPromo = null;
+    $("promoInput").value = "";
+    $("buyTitle").textContent = "Оформление";
+    $("buyDesc").textContent = desc;
+    $("finalPrice").textContent = price + " ₽";
+    pending = { title, desc, price, months, forever };
+    $("buyOverlay").hidden = false;
+  }
+
+  $("buyOverlay").addEventListener("click", (e) => { if (e.target === $("buyOverlay")) { $("buyOverlay").hidden = true; pending = null; appliedPromo = null; } });
+  $("closeBuy").addEventListener("click", () => { $("buyOverlay").hidden = true; pending = null; appliedPromo = null; });
+
+  $("applyPromo").addEventListener("click", () => {
+    if (!pending) return;
+    const code = $("promoInput").value.trim();
+    if (!code) return toast("Впиши промокод сначала");
+    const p = promos.find((x) => x.code === code);
+    if (!p) return toast("Промокод не найден");
+    if (p.usesLeft === 0) return toast("У промокода кончились использования");
+    appliedPromo = p;
+    const disc = Math.round(pending.price * (1 - p.percent / 100));
+    $("finalPrice").textContent = pending.price + " ₽ → " + disc + " ₽ (скидка " + p.percent + "%)";
+    toast("Промокод применён: −" + p.percent + "%");
+  });
+
+  $("payBtn").addEventListener("click", () => {
+    if (!pending) return;
+    if (!cur) { $("buyOverlay").hidden = true; pending = null; return toast("Сначала войди в аккаунт"); }
+    const u = cur;
+    const base = pending;
+    let price = base.price;
+    if (appliedPromo) {
+      price = Math.round(base.price * (1 - appliedPromo.percent / 100));
+      appliedPromo.usesLeft--;
+      u.promos.push(appliedPromo.code);
+      savePromos();
+    }
+    const now = Date.now();
+    if (base.forever) {
+      if (u.sub && u.sub.forever) return toast("У тебя уже есть бессрочная подписка");
+      u.sub = { from: now, to: null, forever: true };
+    } else {
+      if (u.sub && u.sub.forever) { u.sub = { from: u.sub.from, to: u.sub.to, forever: true }; toast("Тариф не нужен — у тебя бессрочная подписка"); }
+      else {
+        let from = now;
+        let head = addMonths(now, base.months);
+        if (u.sub && isActive(u)) { from = u.sub.from; head = addMonths(u.sub.to, base.months); }
+        u.sub = { from, to: head, forever: false };
+      }
+    }
+    saveUsers();
+    $("buyOverlay").hidden = true; pending = null; appliedPromo = null;
+    $("psub").textContent = subText(u);
+    renderProfile();
+    toast("Оплата принята — подписка оформлена");
+  });
+
+  $$("[data-buy]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!cur) { openAuth("login"); return toast("Сначала войди в аккаунт"); }
+      const title = btn.dataset.buy;
+      const price = +btn.dataset.price;
+      const m3 = title.includes("3 мес");
+      const m12 = title.includes("год");
+      const forever = title.includes("навсегда");
+      openBuy("Оформление — " + title, title + " · сумма: " + price + " ₽", price, m3 ? 3 : (m12 ? 12 : 1), forever);
+    });
+  });
+
+  $("hwidBuyBtn").addEventListener("click", () => {
+    if (!cur) { openAuth("login"); return toast("Сначала войди в аккаунт"); }
+    if (!cur.hwid) return toast("HWID ещё не активен — сначала войди в клиент");
+    const now = Date.now();
+    cur.hwid = null;
+    saveUsers(); renderProfile();
+    toast("Сброс HWID выполнен. При входе в клиент привяжется новый");
+  });
+
+  $("buyClient").addEventListener("click", () => {
+    document.getElementById("tariffs").scrollIntoView({ behavior: "smooth" });
+  });
+
+  $("dlClient").addEventListener("click", () => {
+    if (!cur || !isActive(cur)) { document.getElementById("tariffs").scrollIntoView({ behavior: "smooth" }); return toast("Нужна активная подписка — выбери тариф"); }
+    toast("Скачивание клиента... (ссылка появится позже)");
+  });
+
+  /* ---------- password ---------- */
+
+  $("changePassBtn").addEventListener("click", () => {
+    if (!cur) return;
+    const o = $("oldPass").value, n1 = $("newPass1").value, n2 = $("newPass2").value;
+    if (!n1) return toast("Введи новый пароль");
+    if (n1.length < 4) return toast("Новый пароль слишком короткий");
+    if (n1 !== n2) return toast("Новые пароли не совпадают");
+    if (cur.pass !== hash(o)) { if (!o) return toast("Введи старый пароль"); return toast("Старый пароль неверный"); }
+    cur.pass = hash(n1);
+    saveUsers();
+    $("oldPass").value = $("newPass1").value = $("newPass2").value = "";
+    toast("Пароль изменён");
+  });
+
+  /* ---------- keys ---------- */
+
+  $("activateKeyBtn").addEventListener("click", () => {
+    if (!cur) return;
+    const code = $("keyInput").value.trim();
+    if (!code) return toast("Впиши ключ активации");
+    const k = keys.find((x) => x.code === code);
+    if (!k) return toast("Такого ключа нет. Ключи выдаются в AdminPanel");
+    if (k.usedBy) return toast("Ключ уже использован пользователем " + k.usedBy);
+    k.usedBy = cur.nick; saveKeys();
+
+    const now = Date.now();
+    if (cur.sub && cur.sub.forever) toast("Ключ активирован — бессрочная подписка активна");
+    else {
+      const base2 = isActive(cur) ? cur.sub.to : now;
+      cur.sub = { from: isActive(cur) && cur.sub ? cur.sub.from : now, to: addMonths(base2, 3), forever: false };
+      saveUsers(); renderProfile();
+      toast("Ключ активирован — подписка +3 месяца");
+    }
+    $("keyInput").value = "";
+    renderProfile();
+  });
+
+  /* ---------- admin ---------- */
+
+  function openAdmin() {
+    $("adminOverlay").hidden = false;
+    const ok = (() => { try { return localStorage.getItem("wizard.adminok") === "1"; } catch (e) { return false; } })();
+    $("adminGate").hidden = ok;
+    $("adminMain").hidden = !ok;
+    if (ok) renderAdminTables();
+  }
+
+  $("adminBtn").addEventListener("click", openAdmin);
+  $("closeAdmin").addEventListener("click", () => { $("adminOverlay").hidden = true; });
+
+  $("adminWord").addEventListener("keydown", (e) => { if (e.key === "Enter") $("adminCodeOk").click(); });
+
+  $("adminCodeOk").addEventListener("click", () => {
+    const w = $("adminWord").value.trim();
+    if (w.toLowerCase() !== ADMIN_WORD.toLowerCase()) return toast("Неверное кодовое слово");
+    try { localStorage.setItem("wizard.adminok", "1"); } catch (e) {}
+    $("adminGate").hidden = true;
+    $("adminMain").hidden = false;
+    renderAdminTables();
+    toast("Добро пожаловать, владелец");
+  });
+
+  $$("#adminTabs .tab").forEach((t) => {
+    t.addEventListener("click", () => {
+      $$("#adminTabs .tab").forEach((x) => x.classList.toggle("active", x === t));
+      $("adminUsers").hidden = t.dataset.amt !== "users";
+      $("adminKeys").hidden = t.dataset.amt !== "keys";
+      $("adminPromos").hidden = t.dataset.amt !== "promos";
+    });
+  });
+
+  function renderAdminTables() {
+    const box = $("adminUsers");
+    if (!users.length) { box.innerHTML = "<p class='muted'>Пользователей пока нет</p>"; return; }
+    let h = "<table class='admin-table'><thead><tr><th>Ник</th><th>Роль</th><th>Срок</th><th>Почта</th><th>Пароль (hash)</th><th>HWID</th></tr></thead><tbody>";
+    for (const u of users) {
+      h += "<tr><td>" + u.nick + "</td><td><select data-role='' data-idx='" + users.indexOf(u) + "'>"
+        + ROLE_TABLE.map((r) => "<option value='" + r + "'" + (r === u.role ? " selected" : "") + ">" + r + "</option>").join("")
+        + "</select></td><td>" + (u.sub ? (u.sub.forever ? "навсегда" : fmtDate(u.sub.from) + " → " + fmtDate(u.sub.to)) : "—") + "</td><td>" + u.email + "</td><td class='mono'>" + u.pass + "</td><td class='mono'>" + (u.hwid || "—") + "</td></tr>";
+    }
+    h += "</tbody></table>";
+    box.innerHTML = h;
+    $$("#adminUsers select").forEach((s) => {
+      s.addEventListener("change", () => {
+        users[+s.dataset.idx].role = s.value;
+        saveUsers();
+        if (cur) { renderProfile(); if (users.indexOf(cur) === +s.dataset.idx) refreshNav(); }
+        toast("Роль пользователя изменена");
+      });
+    });
+  }
+
+  function renderKeys() {
+    const k = $("keysList");
+    if (!keys.length) { k.innerHTML = "<p class='muted'>Ключей пока нет</p>"; return; }
+    k.innerHTML = "<table class='admin-table'><thead><tr><th>Ключ</th><th>Дата</th><th>Статус</th></tr></thead><tbody>" +
+      keys.map((x) => "<tr><td class='mono'>" + x.code + "</td><td>" + fmtDate(x.createdAt) + "</td><td>" + (x.usedBy ? "использован: " + x.usedBy : "свободен") + "</td></tr>").join("") +
+      "</tbody></table>";
+  }
+
+  $("genKeyBtn").addEventListener("click", () => {
+    const code = "WZ-" + rand4() + "-" + rand4() + "-" + rand4();
+    keys.push({ code, createdAt: Date.now(), usedBy: null });
+    saveKeys(); renderKeys();
+    toast("Ключ сгенерирован: " + code);
+  });
+
+  function renderPromos() {
+    const p = $("promosList");
+    if (!promos.length) { p.innerHTML = "<p class='muted'>Промокодов пока нет</p>"; return; }
+    p.innerHTML = "<table class='admin-table'><thead><tr><th>Код</th><th>Скидка</th><th>Использований</th></tr></thead><tbody>" +
+      promos.map((x) => "<tr><td class='mono'>" + x.code + "</td><td>" + x.percent + "%</td><td>" + x.usesLeft + "</td></tr>").join("") +
+      "</tbody></table>";
+  }
+
+  $("genPromoBtn").addEventListener("click", () => {
+    const per = parseInt($("promoPercent").value, 10);
+    if (!per || per < 1 || per > 100) return toast("Впиши процент от 1 до 100");
+    const code = "WZD-" + rand4();
+    promos.push({ code, percent: per, usesLeft: 10 });
+    savePromos(); renderPromos();
+    $("promoPercent").value = "";
+    toast("Промокод сгенерирован: " + code + " (−" + per + "%)");
+  });
+
+  /* ---------- nav / ui ---------- */
+
+  function refreshNav() {
+    $("navProfileBtn").hidden = !cur;
+    const b = $("navLoginBtn");
+    if (cur) {
+      b.textContent = "Выйти";
+      b.classList.remove("primary");
+      b.classList.add("ghost");
+    } else {
+      b.textContent = "Войти";
+      b.classList.add("primary");
+      b.classList.remove("ghost");
+    }
+    $("logoutBtn").textContent = "Выйти (" + (cur ? cur.nick : "") + ")";
+  }
+
+  $$('a[href^="#"]').forEach((a) => {
+    a.addEventListener("click", (e) => {
+      const t = $(a.getAttribute("href").slice(1));
+      if (t) { e.preventDefault(); t.scrollIntoView({ behavior: "smooth" }); }
+    });
+  });
+
+  $("videoBox").addEventListener("click", () => toast("Видео появится позже — скину ссылку"));
+
   $("year").textContent = new Date().getFullYear();
+
+  /* ---------- init ---------- */
+
   refreshNav();
+  if (cur) { $("profileNeedLogin").hidden = true; $("profileCard").hidden = false; renderProfile(); }
 })();
