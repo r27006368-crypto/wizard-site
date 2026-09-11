@@ -1,5 +1,5 @@
-﻿$ErrorActionPreference = "Stop"
-$VERSION = "1.0.3"
+﻿﻿$ErrorActionPreference = "Stop"
+$VERSION = "1.0.1"
 $HTTP = "https://raw.githubusercontent.com/r27006368-crypto/wizard-site/main/loader"
 $APP = "Wizard"
 $PF86 = [Environment]::GetFolderPath("ProgramFilesX86")
@@ -8,14 +8,14 @@ $RES = Join-Path $PSScriptRoot "auth_result.txt"
 
 function Get-WzHash([string]$s) {
   $s = "wz::" + $s
-  $h = [uint64]2166136261
+  $h = [uint64]0x811c9dc5
   foreach ($ch in $s.ToCharArray()) {
     $code = [int64][int][char]$ch
-    $h = (($h -bxor $code) * [uint64]16777619) -band [uint64]4294967295
+    $h = (($h -bxor $code) * [uint64]0x01000193) -band 0xFFFFFFFF
   }
   $digits = "0123456789abcdefghijklmnopqrstuvwxyz"
   $out = ""
-  $n = [uint64]($h -band [uint64]4294967295)
+  $n = [uint64]($h -band 0xFFFFFFFF)
   if ($n -eq 0) { $out = "0" }
   while ($n -gt 0) {
     $rem = [int]($n % 36)
@@ -135,8 +135,7 @@ function Rename-HighWay {
 }
 
 function Check-JavaRunning {
-  $found = Get-CimInstance Win32_Process -Filter "Name='java.exe' OR Name='javaw.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -match "KnotClient" }
+  $found = Get-Process -Name "java","javaw" -ErrorAction SilentlyContinue
   return $null -ne $found
 }
 

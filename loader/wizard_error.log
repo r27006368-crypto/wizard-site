@@ -1,0 +1,16 @@
+﻿[2026-09-11 18:57:52] System.Management.Automation.RuntimeException: Cannot convert value "-2128831035" to type "System.UInt64". Error: "Value was either too large or too small for a UInt64." ---> System.Management.Automation.PSInvalidCastException: Cannot convert value "-2128831035" to type "System.UInt64". Error: "Value was either too large or too small for a UInt64." ---> System.OverflowException: Value was either too large or too small for a UInt64.
+   at System.Convert.ToUInt64(Int32 value)
+   at System.Convert.ChangeType(Object value, Type conversionType, IFormatProvider provider)
+   at System.Management.Automation.LanguagePrimitives.ConvertNumeric(Object valueToConvert, Type resultType, Boolean recursion, PSObject originalValueToConvert, IFormatProvider formatProvider, TypeTable backupTable)
+   --- End of inner exception stack trace ---
+   at System.Management.Automation.LanguagePrimitives.ConvertNumeric(Object valueToConvert, Type resultType, Boolean recursion, PSObject originalValueToConvert, IFormatProvider formatProvider, TypeTable backupTable)
+   at CallSite.Target(Closure , CallSite , Int32 )
+   at System.Dynamic.UpdateDelegates.UpdateAndExecute1[T0,TRet](CallSite site, T0 arg0)
+   at System.Management.Automation.Interpreter.DynamicInstruction`2.Run(InterpretedFrame frame)
+   at System.Management.Automation.Interpreter.EnterTryCatchFinallyInstruction.Run(InterpretedFrame frame)
+   --- End of inner exception stack trace ---
+   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)
+   at System.Management.Automation.Interpreter.ActionCallInstruction`2.Run(InterpretedFrame frame)
+   at System.Management.Automation.Interpreter.EnterTryCatchFinallyInstruction.Run(InterpretedFrame frame)
+   at System.Management.Automation.Interpreter.EnterTryCatchFinallyInstruction.Run(InterpretedFrame frame)
+[2026-09-11 19:02:31] Elevate: This command cannot be run due to the error: The operation was canceled by the user.
