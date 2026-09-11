@@ -1,5 +1,4 @@
 @echo off
-chcp 65001 >nul
 title Wizard Launcher
 
 net session >nul 2>&1
