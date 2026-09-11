@@ -1,5 +1,5 @@
 ﻿$ErrorActionPreference = "Stop"
-$VERSION = "1.0.4"
+$VERSION = "1.0.5"
 $HTTP = "https://raw.githubusercontent.com/r27006368-crypto/wizard-site/main/loader"
 $APP = "Wizard"
 $PF86 = [Environment]::GetFolderPath("ProgramFilesX86")
@@ -45,18 +45,18 @@ function Write-Ini($cfg) {
 
 function Banner {
   $art = @(
-    "    __        ___   _ __  ___   ____    ____   ____",
-    "    \ \      / / \ | |  \/  | |  _ \  / ___| / ___|",
-    "     \ \ /\ / / _ \| |\/\/| | | |_) | \___ \| |  _",
-    "      \ V  V / ___ \ |  |  | | |  _ <   ___) | |_| |",
-    "       \_/\_/_/   \_\_|  |_|_|_|_|_ \_\ |____/ \____|"
+    "  __        __  _  _____     _      ____     ____",
+    "  \ \      / / (_)   / /    / \     |  _ \   |  _ \",
+    "   \ \ /\ / /  | |  / /    / _ \    | |_) |  | | | |",
+    "    \ V  V /   | | / /    / ___ \   |  _ <   | |_| |",
+    "     \_/\_/    |_| /_/    /_/   \_\ |_| \_\  |____/"
   )
   Clear-Host
   Write-Host ""
   foreach ($l in $art) { Write-Host $l -ForegroundColor Magenta }
-  Write-Host "    ================================================" -ForegroundColor Cyan
-  Write-Host "      Wizard 1.21.11  -  премиум клиент для Minecraft" -ForegroundColor Cyan
-  Write-Host "      Версия лаунчера: $VERSION" -ForegroundColor DarkGray
+  Write-Host "  " + ("=" * 47) -ForegroundColor Cyan
+  Write-Host "    Wizard 1.21.11  |  premium Minecraft client" -ForegroundColor Cyan
+  Write-Host "    Launcher version: $VERSION" -ForegroundColor DarkGray
   Write-Host ""
 }
 
@@ -148,6 +148,14 @@ function Get-JavaMajor([string]$path) {
 
 function Find-Java {
   $cands = New-Object System.Collections.Generic.List[string]
+  if ($env:JAVA_HOME) {
+    $p = Join-Path $env:JAVA_HOME "bin\java.exe"
+    if (Test-Path -LiteralPath $p) { $cands.Add($p) }
+  }
+  $cmd = Get-Command java -ErrorAction SilentlyContinue
+  if ($cmd) { $cands.Add($cmd.Source) }
+  $cmdw = Get-Command javaw -ErrorAction SilentlyContinue
+  if ($cmdw) { $cands.Add($cmdw.Source) }
   foreach ($p in @(
     (Join-Path $script:MC "runtime\bin\java.exe"),
     (Join-Path $script:MC "runtime\bin\javaw.exe")
@@ -160,14 +168,9 @@ function Find-Java {
     (Get-ChildItem -Path "$env:LOCALAPPDATA\Programs" -Recurse -Filter java.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
   )
   foreach ($list in $roots) { foreach ($p in $list) { if ($p -and (Test-Path -LiteralPath $p)) { $cands.Add($p) } } }
-  if ($env:JAVA_HOME) { $cands.Add((Join-Path $env:JAVA_HOME "bin\java.exe")) }
-  $cmd = Get-Command java -ErrorAction SilentlyContinue
-  if ($cmd) { $cands.Add($cmd.Source) }
-  $cmdw = Get-Command javaw -ErrorAction SilentlyContinue
-  if ($cmdw) { $cands.Add($cmdw.Source) }
-  $uniq = $cands | Select-Object -Unique
-  foreach ($p in $uniq) { if ((Get-JavaMajor $p) -ge 21) { return $p } }
-  foreach ($p in $uniq) { return $p }
+  foreach ($p in ($cands | Select-Object -Unique)) {
+    if ((Get-JavaMajor $p) -ge 21) { return $p }
+  }
   return $null
 }
 
@@ -282,17 +285,12 @@ function Launch-Client {
   }
   $java = Find-Java
   if (-not $java) {
-    Write-Host "Java не найдена." -ForegroundColor Red
-    Write-Host "Установи Java 21+ (например Temurin JDK 21) или положи java.exe в папку runtime\bin внутри клиента." -ForegroundColor Yellow
+    Write-Host "Java 21 не найдена." -ForegroundColor Red
+    Write-Host "Установи Temurin JDK 21+ или положи рабочую java.exe в runtime\bin внутри клиента." -ForegroundColor Yellow
     Start-Sleep -Seconds 4
     return
   }
   $jmaj = Get-JavaMajor $java
-  if ($jmaj -lt 21) {
-    Write-Host "Найдена Java, но она слишком старая (версия $jmaj). Нужна 21 или новее." -ForegroundColor Red
-    Start-Sleep -Seconds 4
-    return
-  }
   Make-SessionJson
   $game = Join-Path $script:MC "game"
   if (-not (Test-Path -LiteralPath $game)) { $game = $script:MC }
