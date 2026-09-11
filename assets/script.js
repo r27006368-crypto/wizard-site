@@ -36,6 +36,8 @@
     return false;
   }
 
+  const sameId = (a, b) => String(a) === String(b);
+
   const hash = (s) => {
     let h = 0x811c9dc5;
     s = "wz::" + s;
@@ -442,7 +444,7 @@
     const o = $("adminOrders");
     if (DB_ERR) { o.innerHTML = "<div class='db-err'>⚠ Ошибка базы данных: " + DB_ERR + "</div>"; return; }
     if (!orders.length) { o.innerHTML = "<p class='muted'>Заявок пока нет</p>"; return; }
-    orders.sort((a, b) => b.id - a.id);
+    orders.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
     o.innerHTML = "<table class='admin-table'><thead><tr><th>Дата</th><th>Ник</th><th>Почта</th><th>Тариф</th><th>Сумма</th><th>Промо</th><th>Статус</th><th></th></tr></thead><tbody>"
       + orders.map((x) => {
         const stTxt = x.status === "checking" ? "⏳ проверка" : (x.status === "confirmed" ? "✅ оплачен" : "❌ отклонён");
@@ -454,10 +456,10 @@
       + "</tbody></table>";
 
     $$("#adminOrders [data-confirm]").forEach((b) => {
-      b.addEventListener("click", () => confirmOrder(+b.dataset.confirm));
+      b.addEventListener("click", () => confirmOrder(b.dataset.confirm));
     });
     $$("#adminOrders [data-reject]").forEach((b) => {
-      b.addEventListener("click", () => setOrderStatus(+b.dataset.reject, "rejected"));
+      b.addEventListener("click", () => setOrderStatus(b.dataset.reject, "rejected"));
     });
   }
 
@@ -483,7 +485,7 @@
 
     await sbUpdate("accounts", { id: u.id }, { sub_from, sub_to, sub_forever });
     await sbUpdate("orders", { id: o.id }, { status: "confirmed", confirmed_at: now });
-    if (cur && cur.id === u.id) { cur.sub_from = sub_from; cur.sub_to = sub_to; cur.sub_forever = sub_forever; }
+    if (cur && sameId(cur.id, u.id)) { cur.sub_from = sub_from; cur.sub_to = sub_to; cur.sub_forever = sub_forever; }
     await renderOrders(); await renderAdminTables(); await renderProfile();
     logEvent("confirm", o.nick + " " + o.plan);
     toast("Оплата подтверждена — у " + o.nick + " активна подписка");
@@ -655,17 +657,17 @@
 
     $$("#adminUsers select").forEach((s) => {
       s.addEventListener("change", async () => {
-        await sbUpdate("accounts", { id: +s.dataset.uid }, { role: s.value });
+        await sbUpdate("accounts", { id: s.dataset.uid }, { role: s.value });
         toast("Роль обновлена → " + s.value);
-        if (cur && cur.id === +s.dataset.uid) { cur.role = s.value; renderProfile(); }
+        if (cur && sameId(cur.id, s.dataset.uid)) { cur.role = s.value; renderProfile(); }
         await renderAdminTables();
       });
     });
     $$("#adminUsers [data-unsub]").forEach((b) => {
       b.addEventListener("click", async () => {
-        await sbUpdate("accounts", { id: +b.dataset.unsub }, { sub_from: null, sub_to: null, sub_forever: false });
+        await sbUpdate("accounts", { id: b.dataset.unsub }, { sub_from: null, sub_to: null, sub_forever: false });
         toast("Подписка снята");
-        if (cur && cur.id === +b.dataset.unsub) { cur.sub_from = null; cur.sub_to = null; cur.sub_forever = false; renderProfile(); }
+        if (cur && sameId(cur.id, b.dataset.unsub)) { cur.sub_from = null; cur.sub_to = null; cur.sub_forever = false; renderProfile(); }
         await renderAdminTables();
       });
     });
@@ -676,11 +678,12 @@
     const k = $("keysList");
     if (DB_ERR) { k.innerHTML = "<div class='db-err'>⚠ Ошибка базы данных: " + DB_ERR + "</div>"; return; }
     if (!keys.length) { k.innerHTML = "<p class='muted'>Ключей пока нет</p>"; return; }
-    keys.sort((a, b) => b.id - a.id);
+    keys.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
     k.innerHTML = "<table class='admin-table'><thead><tr><th>Ключ</th><th>Срок</th><th>Дата</th><th>Статус</th><th></th></tr></thead><tbody>"
       + keys.map((x) => "<tr><td class='mono'>" + x.code + "</td><td>" + (x.days || (x.months ? x.months * 30 : 30)) + " дн.</td><td>" + fmtDate(x.created_at) + "</td><td>"
         + (x.used_by ? "использован: " + x.used_by : "свободен ✅") + "</td><td><button class='mini ok' data-cpy='" + x.code + "'>Копировать</button> <button class='mini' data-delkey='" + x.id + "'>Удалить</button></td></tr>").join("")
       + "</tbody></table>";
+    $("adminKeys").scrollTop = 0;
   }
 
   $("genKeyBtn").addEventListener("click", async () => {
@@ -703,7 +706,7 @@
     }
     const b = e.target.closest("[data-delkey]");
     if (!b) return;
-    await sbDelete("app_keys", { id: +b.dataset.delkey });
+    await sbDelete("app_keys", { id: b.dataset.delkey });
     await renderKeys();
     toast("Ключ удалён");
   });
@@ -721,12 +724,12 @@
     const p = $("promosList");
     if (DB_ERR) { p.innerHTML = "<div class='db-err'>⚠ Ошибка базы данных: " + DB_ERR + "</div>"; return; }
     if (!promos.length) { p.innerHTML = "<p class='muted'>Промокодов пока нет</p>"; return; }
-    promos.sort((a, b) => b.id - a.id);
+    promos.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
     p.innerHTML = "<table class='admin-table'><thead><tr><th>Код</th><th>Скидка</th><th>Использований</th><th></th></tr></thead><tbody>"
       + promos.map((x) => "<tr><td class='mono'>" + x.code + "</td><td>" + x.percent + "%</td><td><select data-updp='" + x.id + "'>" + promoUsesOptions(x.uses_left || 0) + "</select></td><td><button class='mini' data-delpromo='" + x.id + "'>Удалить</button></td></tr>").join("")
       + "</tbody></table>";
     $$("#promosList [data-updp]").forEach((s) => s.addEventListener("change", async () => {
-      await sbUpdate("app_promos", { id: +s.dataset.updp }, { uses_left: +s.value });
+      await sbUpdate("app_promos", { id: s.dataset.updp }, { uses_left: +s.value });
       await renderPromos();
       toast("Использования обновлены");
     }));
