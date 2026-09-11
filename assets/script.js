@@ -751,8 +751,6 @@
     $("year").textContent = new Date().getFullYear();
 
     await sbGet("accounts");
-    if (DB_ERR) toast("База недоступна — твоя сеть блокирует supabase.co (нужен VPN)");
-    else toast("Сайт подключён к базе данных ✅");
 
     const savedNick = getSession();
     if (savedNick) {
