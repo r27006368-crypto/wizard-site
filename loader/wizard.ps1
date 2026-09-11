@@ -232,10 +232,19 @@ function Get-RemoteVersion {
   } catch { return $null }
 }
 
+function Get-VersionNum([string]$s) {
+  $p = @($s -split '\.')
+  $a = 0; $b = 0; $c = 0
+  if ($p.Length -gt 0) { [int]::TryParse($p[0], [ref]$a) | Out-Null }
+  if ($p.Length -gt 1) { [int]::TryParse($p[1], [ref]$b) | Out-Null }
+  if ($p.Length -gt 2) { [int]::TryParse($p[2], [ref]$c) | Out-Null }
+  return ($a * 1000000 + $b * 1000 + $c)
+}
+
 function Self-Update {
   $remote = Get-RemoteVersion
   if (-not $remote) { return }
-  if ($remote -eq $VERSION) { return }
+  if ((Get-VersionNum $remote) -le (Get-VersionNum $VERSION)) { return }
   Write-Host "Доступно обновление: $remote. Скачиваю..." -ForegroundColor Green
   try {
     $new = Join-Path $PSScriptRoot "wizard.new.ps1"
