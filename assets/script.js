@@ -7,7 +7,6 @@
   const ADMIN_NICK = "NaitNiks";
   const ADMIN_WORD = "Valera";
   const ROLE_TABLE = ["Dev", "Tex.Tester", "Media", "User"];
-  const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
 
   const toast = (msg) => {
     const t = $("toast");
@@ -34,7 +33,7 @@
     if (!ts) return "—";
     const d = new Date(ts);
     const p = (n) => String(n).padStart(2, "0");
-    return p(d.getDate()) + "." + p(d.getMonth() + 1) + "." + String(d.getFullYear()).slice(2);
+    return p(d.getDate()) + "." + p(d.getMonth() + 1) + "." + d.getFullYear();
   };
 
   const fmtDateTime = (ts) => {
@@ -250,9 +249,17 @@
 
   function subText(u) {
     if (!u.sub) return "Нет подписки";
-    if (u.sub.forever) return "от " + fmtDate(u.sub.from) + " — навсегда";
-    if (u.sub.to > Date.now()) { const d = (u.sub.to - Date.now()) / MONTH_MS; return "от " + fmtDate(u.sub.from) + " до " + fmtDate(u.sub.to) + " (осталось ~" + Math.max(1, Math.ceil(d)) + " мес.)"; }
-    return "от " + fmtDate(u.sub.from) + " до " + fmtDate(u.sub.to) + " — истёк " + fmtDate(u.sub.to);
+    if (u.sub.forever) return "Навсегда · активна с " + fmtDate(u.sub.from);
+    const left = u.sub.to - Date.now();
+    if (left > 0) {
+      const days = Math.ceil(left / (1000 * 60 * 60 * 24));
+      const months = Math.floor(days / 30);
+      const rem = months > 0
+        ? "~" + months + " мес. " + (days % 30) + " дн."
+        : days + " дн.";
+      return "с " + fmtDate(u.sub.from) + " до " + fmtDate(u.sub.to) + " · осталось " + rem;
+    }
+    return "с " + fmtDate(u.sub.from) + " до " + fmtDate(u.sub.to) + " · ИСТЁК";
   }
 
   const roleCls = (r) => "grp-" + String(r).toLowerCase().replace(".", "");
@@ -429,10 +436,10 @@
 
   function openAdmin() {
     $("adminOverlay").hidden = false;
-    const ok = (() => { try { return localStorage.getItem("wizard.adminok") === "1"; } catch (e) { return false; } })();
-    $("adminGate").hidden = ok;
-    $("adminMain").hidden = !ok;
-    if (ok) renderAdminTables();
+    $("adminGate").hidden = false;
+    $("adminMain").hidden = true;
+    $("adminWord").value = "";
+    renderAdminTables();
   }
 
   $("adminBtn").addEventListener("click", openAdmin);
@@ -443,7 +450,6 @@
   $("adminCodeOk").addEventListener("click", () => {
     const w = $("adminWord").value.trim();
     if (w.toLowerCase() !== ADMIN_WORD.toLowerCase()) return toast("Неверное кодовое слово");
-    try { localStorage.setItem("wizard.adminok", "1"); } catch (e) {}
     $("adminGate").hidden = true;
     $("adminMain").hidden = false;
     renderAdminTables();
