@@ -3,11 +3,14 @@ chcp 65001 >nul
 title Wizard Installer
 set "APP=%ProgramFiles(x86)%\Wizard"
 
-if not exist "%APP%" (
-  echo Установка требует прав администратора. Открываю запрос UAC...
-  timeout /t 1 >nul
-  powershell -NoProfile -Command "Start-Process -FilePath '%ComSpec%' -ArgumentList '/c','\"%~f0\"' -Verb RunAs" >nul 2>&1
-  exit /b
+net session >nul 2>&1
+if errorlevel 1 (
+  if not exist "%APP%" (
+    echo Установка требует прав администратора. Открываю запрос UAC...
+    timeout /t 1 >nul
+    powershell -NoProfile -Command "Start-Process -FilePath '%ComSpec%' -ArgumentList '/c','\"%~f0\"' -Verb RunAs" >nul 2>&1
+    exit /b
+  )
 )
 
 md "%APP%" 2>nul
