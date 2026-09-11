@@ -6,7 +6,7 @@
 <title>Wizard — твой премиум клиент</title>
 <meta name="description" content="Wizard — премиум чит клиент для Minecraft. Регистрация, профиль, тарифы, ключи, сброс HWID.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%237c3aed'/%3E%3Ctext x='16' y='23' font-size='20' font-weight='900' text-anchor='middle' fill='white' font-family='Arial'>W</text%3E%3C/svg%3E">
-<link rel="stylesheet" href="assets/styles.css">
+<link rel="stylesheet" href="assets/styles.css?v=3">
 <script>
   try {
     var t = localStorage.getItem("wizard.theme");
@@ -272,6 +272,9 @@
 
     <div class="admin-main" id="adminMain" hidden>
       <div class="modal-head"><span class="w-badge">W</span><h3>Админ-панель · NaitNiks</h3></div>
+      <div class="row">
+        <button class="btn ghost" id="adminRefresh">Обновить списки</button>
+      </div>
       <div class="auth-tabs" id="adminTabs">
         <button class="tab active" data-amt="users">Пользователи</button>
         <button class="tab" data-amt="keys">Ключи</button>
@@ -310,6 +313,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>if (!window.supabase) document.write('<script src="https://unpkg.com/@supabase/supabase-js@2"><\/script>');</script>
-<script src="assets/script.js"></script>
+<script src="assets/script.js?v=3"></script>
 </body>
 </html>

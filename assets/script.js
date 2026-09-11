@@ -69,9 +69,12 @@
 
   /* ---------- supabase helpers ---------- */
 
+  let DB_ERR = null;
+
   async function sbGet(table, params) {
     const { data, error } = await SB.from(table).select(params || "*");
-    if (error) { console.error(error); return []; }
+    if (error) { DB_ERR = error.message; console.error(error); return []; }
+    DB_ERR = null;
     return data || [];
   }
 
@@ -81,13 +84,15 @@
       q = q.eq(k, v);
     }
     const { data, error } = await q;
-    if (error) { console.error(error); return []; }
+    if (error) { DB_ERR = error.message; console.error(error); return []; }
+    DB_ERR = null;
     return data || [];
   }
 
   async function sbInsert(table, body) {
     const { data, error } = await SB.from(table).insert(body).select();
-    if (error) { console.error(error); return null; }
+    if (error) { DB_ERR = error.message; console.error(error); return null; }
+    DB_ERR = null;
     return data && data[0];
   }
 
@@ -97,7 +102,8 @@
       q = q.eq(k, v);
     }
     const { data, error } = await q.select();
-    if (error) { console.error(error); return null; }
+    if (error) { DB_ERR = error.message; console.error(error); return null; }
+    DB_ERR = null;
     return data;
   }
 
@@ -107,7 +113,9 @@
       q = q.eq(k, v);
     }
     const { error } = await q;
-    return !error;
+    if (error) { DB_ERR = error.message; console.error(error); return null; }
+    DB_ERR = null;
+    return true;
   }
 
   /* ---------- bg ---------- */
@@ -492,12 +500,21 @@
       $("adminUsers").hidden = t.dataset.amt !== "users";
       $("adminKeys").hidden = t.dataset.amt !== "keys";
       $("adminPromos").hidden = t.dataset.amt !== "promos";
+      if (t.dataset.amt === "users") renderAdminTables();
+      if (t.dataset.amt === "keys") renderKeys();
+      if (t.dataset.amt === "promos") renderPromos();
     });
+  });
+
+  $("adminRefresh").addEventListener("click", async () => {
+    await Promise.all([renderAdminTables(), renderKeys(), renderPromos()]);
+    toast("Списки обновлены");
   });
 
   async function renderAdminTables() {
     const users = await sbGet("accounts");
     const box = $("adminUsers");
+    if (DB_ERR) { box.innerHTML = "<div class='db-err'>⚠ Ошибка базы данных: " + DB_ERR + "<br>Скорее всего supabase.co заблокирован твоей сетью. Проверь через VPN или другой интернет.</div>"; return; }
     if (!users.length) { box.innerHTML = "<p class='muted'>Пользователей пока нет</p>"; return; }
 
     let h = "<div class='role-legend'><span class='legend-note'>Роли (высшие → низшие):</span>"
@@ -537,6 +554,7 @@
   async function renderKeys() {
     const keys = await sbGet("app_keys");
     const k = $("keysList");
+    if (DB_ERR) { k.innerHTML = "<div class='db-err'>⚠ Ошибка базы данных: " + DB_ERR + "</div>"; return; }
     if (!keys.length) { k.innerHTML = "<p class='muted'>Ключей пока нет</p>"; return; }
     keys.sort((a, b) => b.id - a.id);
     k.innerHTML = "<table class='admin-table'><thead><tr><th>Ключ</th><th>Срок</th><th>Дата</th><th>Статус</th><th></th></tr></thead><tbody>"
@@ -564,6 +582,7 @@
   async function renderPromos() {
     const promos = await sbGet("app_promos");
     const p = $("promosList");
+    if (DB_ERR) { p.innerHTML = "<div class='db-err'>⚠ Ошибка базы данных: " + DB_ERR + "</div>"; return; }
     if (!promos.length) { p.innerHTML = "<p class='muted'>Промокодов пока нет</p>"; return; }
     promos.sort((a, b) => b.id - a.id);
     p.innerHTML = "<table class='admin-table'><thead><tr><th>Код</th><th>Скидка</th><th>Использований</th><th></th></tr></thead><tbody>"
@@ -625,6 +644,11 @@
 
   async function init() {
     $("year").textContent = new Date().getFullYear();
+
+    await sbGet("accounts");
+    if (DB_ERR) toast("База недоступна — твоя сеть блокирует supabase.co (нужен VPN)");
+    else toast("Сайт подключён к базе данных ✅");
+
     const savedNick = getSession();
     if (savedNick) {
       const rows = await sbGetWhere("accounts", { nick: savedNick });
