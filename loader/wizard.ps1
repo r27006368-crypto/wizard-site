@@ -1,5 +1,5 @@
 ﻿$ErrorActionPreference = "Stop"
-$VERSION = "1.0.5"
+$VERSION = "1.0.6"
 $HTTP = "https://raw.githubusercontent.com/r27006368-crypto/wizard-site/main/loader"
 $APP = "Wizard"
 $PF86 = [Environment]::GetFolderPath("ProgramFilesX86")
@@ -45,18 +45,26 @@ function Write-Ini($cfg) {
 
 function Banner {
   $art = @(
-    "  __        __  _  _____     _      ____     ____",
-    "  \ \      / / (_)   / /    / \     |  _ \   |  _ \",
-    "   \ \ /\ / /  | |  / /    / _ \    | |_) |  | | | |",
-    "    \ V  V /   | | / /    / ___ \   |  _ <   | |_| |",
-    "     \_/\_/    |_| /_/    /_/   \_\ |_| \_\  |____/"
+    "__        __  _  _____     _      ____     ____",
+    "\ \      / / (_)   / /    / \     |  _ \   |  _ \",
+    " \ \ /\ / /  | |  / /    / _ \    | |_) |  | | | |",
+    "  \ V  V /   | | / /    / ___ \   |  _ <   | |_| |",
+    "   \_/\_/    |_| /_/    /_/   \_\ |_| \_\  |____/"
   )
+  $w = 80
+  try { $sw = $Host.UI.RawUI.WindowSize.Width; if ($sw -ge 60) { $w = $sw } } catch {}
+  function Pad-C([string]$s) {
+    $pad = [Math]::Max(0, $w - $s.Length - 6)
+    $ind = [Math]::Floor($pad / 2)
+    return (" " * $ind) + $s + (" " * ($pad - $ind + 3))
+  }
   Clear-Host
   Write-Host ""
-  foreach ($l in $art) { Write-Host $l -ForegroundColor Magenta }
-  Write-Host "  " + ("=" * 47) -ForegroundColor Cyan
-  Write-Host "    Wizard 1.21.11  |  premium Minecraft client" -ForegroundColor Cyan
-  Write-Host "    Launcher version: $VERSION" -ForegroundColor DarkGray
+  foreach ($l in $art) { Write-Host (Pad-C $l) -ForegroundColor Magenta }
+  $sep = "=" * ([Math]::Max(20, $w - 4))
+  Write-Host (Pad-C $sep) -ForegroundColor Cyan
+  Write-Host (Pad-C "Wizard 1.21.11  |  premium Minecraft client") -ForegroundColor Cyan
+  Write-Host (Pad-C "Launcher version: $VERSION") -ForegroundColor DarkGray
   Write-Host ""
 }
 
@@ -139,9 +147,12 @@ function Stop-StaleJava {
 }
 
 function Get-JavaMajor([string]$path) {
+  $old = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
   try {
     $v = (& $path -version 2>&1 | Out-String)
-  } catch { return 0 }
+  } catch { $ErrorActionPreference = $old; return 0 }
+  $ErrorActionPreference = $old
   if ($v -match 'version "(\d+)') { return [int][int]$matches[1] }
   return 0
 }
