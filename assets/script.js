@@ -139,6 +139,14 @@
     SB.from("logs").insert({ nick, event, detail: detail || "", at: Date.now() }).then().catch(() => {});
   }
 
+  let KEY_DAYS_OK = null;
+  async function keyDaysOk() {
+    if (KEY_DAYS_OK !== null) return KEY_DAYS_OK;
+    const { error } = await SB.from("app_keys").select("days").limit(0);
+    KEY_DAYS_OK = !error;
+    return KEY_DAYS_OK;
+  }
+
   /* ---------- bg ---------- */
 
   const bgCv = $("bg");
@@ -688,11 +696,15 @@
 
   $("genKeyBtn").addEventListener("click", async () => {
     const days = Math.max(1, Math.floor(+$("keyDays").value || 30));
+    const months = Math.max(1, Math.ceil(days / 30));
     const code = "WZ-" + randAlnum(5) + "-" + randAlnum(5) + "-" + randAlnum(5) + "-" + randAlnum(5);
-    await sbInsert("app_keys", { code, days, created_at: Date.now() });
+    let ok;
+    if (await keyDaysOk()) ok = await sbInsert("app_keys", { code, days, created_at: Date.now() });
+    else ok = await sbInsert("app_keys", { code, months, created_at: Date.now() });
+    if (!ok) return toast("Ключ НЕ создан — ошибка БД: " + DB_ERR);
     await renderKeys();
     copyText(code);
-    toast("Ключ скопирован в буфер: " + code + " (" + days + " дн.)", 7000);
+    toast("Ключ скопирован в буфер: " + code + (await keyDaysOk() ? " (" + days + " дн.)" : " (" + months + " мес.)"), 7000);
   });
 
   $$("#adminKeys [data-days]").forEach((c) => c.addEventListener("click", () => { $("keyDays").value = c.dataset.days; }));
