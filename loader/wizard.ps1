@@ -1,5 +1,5 @@
 ﻿$ErrorActionPreference = "Stop"
-$VERSION = "1.0.3"
+$VERSION = "1.0.4"
 $HTTP = "https://raw.githubusercontent.com/r27006368-crypto/wizard-site/main/loader"
 $APP = "Wizard"
 $PF86 = [Environment]::GetFolderPath("ProgramFilesX86")
@@ -74,19 +74,9 @@ function Ensure-Elevated {
   if (-not $isAdmin -and ($cfg['ROOT'].StartsWith($PF86, [System.StringComparison]::OrdinalIgnoreCase))) {
     Write-Host ""
     Write-Host "Нужны права администратора, чтобы писать в $($cfg['ROOT'])." -ForegroundColor Yellow
-    Write-Host "Сейчас откроется запрос UAC. Нажми Да." -ForegroundColor Yellow
-    Start-Sleep -Seconds 2
-    try {
-      Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs -ErrorAction Stop | Out-Null
-    } catch {
-      Write-ErrLog "Elevate: $($_.Exception.Message)"
-      Write-Host ""
-      Write-Host "Запрос UAC не подтверждён или заблокирован." -ForegroundColor Red
-      Write-Host "Без прав администратора лаунчер не сможет работать с папкой клиента." -ForegroundColor Yellow
-      Read-Host "Нажми Enter, чтобы закрыть"
-      exit 1
-    }
-    exit
+    Write-Host "Запусти Wizard.cmd от имени администратора: правый клик -> 'Запуск от имени администратора'." -ForegroundColor Yellow
+    Read-Host "Нажми Enter, чтобы закрыть"
+    exit 1
   }
 }
 
@@ -138,6 +128,47 @@ function Check-JavaRunning {
   $found = Get-CimInstance Win32_Process -Filter "Name='java.exe' OR Name='javaw.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -match "KnotClient" }
   return $null -ne $found
+}
+
+function Stop-StaleJava {
+  Get-CimInstance Win32_Process -Filter "Name='java.exe' OR Name='javaw.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match "KnotClient" } |
+    ForEach-Object {
+      try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop | Out-Null } catch {}
+    }
+}
+
+function Get-JavaMajor([string]$path) {
+  try {
+    $v = (& $path -version 2>&1 | Out-String)
+  } catch { return 0 }
+  if ($v -match 'version "(\d+)') { return [int][int]$matches[1] }
+  return 0
+}
+
+function Find-Java {
+  $cands = New-Object System.Collections.Generic.List[string]
+  foreach ($p in @(
+    (Join-Path $script:MC "runtime\bin\java.exe"),
+    (Join-Path $script:MC "runtime\bin\javaw.exe")
+  )) { if ($p -and (Test-Path -LiteralPath $p)) { $cands.Add($p) } }
+  $roots = @(
+    (Get-ChildItem -LiteralPath (Join-Path $script:MC "runtime") -Recurse -Filter java.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName),
+    (Get-ChildItem -Path "C:\Program Files\Java" -Recurse -Filter java.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName),
+    (Get-ChildItem -Path "C:\Program Files\Eclipse Adoptium" -Recurse -Filter java.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName),
+    (Get-ChildItem -Path "C:\Program Files\JetBrains" -Recurse -Filter java.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName),
+    (Get-ChildItem -Path "$env:LOCALAPPDATA\Programs" -Recurse -Filter java.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
+  )
+  foreach ($list in $roots) { foreach ($p in $list) { if ($p -and (Test-Path -LiteralPath $p)) { $cands.Add($p) } } }
+  if ($env:JAVA_HOME) { $cands.Add((Join-Path $env:JAVA_HOME "bin\java.exe")) }
+  $cmd = Get-Command java -ErrorAction SilentlyContinue
+  if ($cmd) { $cands.Add($cmd.Source) }
+  $cmdw = Get-Command javaw -ErrorAction SilentlyContinue
+  if ($cmdw) { $cands.Add($cmdw.Source) }
+  $uniq = $cands | Select-Object -Unique
+  foreach ($p in $uniq) { if ((Get-JavaMajor $p) -ge 21) { return $p } }
+  foreach ($p in $uniq) { return $p }
+  return $null
 }
 
 function Get-RemoteVersion {
@@ -238,28 +269,48 @@ function Launch-Client {
     return
   }
   if (Check-JavaRunning) {
-    Write-Host "Папка клиента используется - уже запущен Java-процесс (Minecraft)." -ForegroundColor Red
-    Write-Host "Закрой игру и попробуй снова." -ForegroundColor Yellow
-    Start-Sleep -Seconds 3
+    Write-Host "В фоне найден зависший процесс Minecraft (KnotClient)." -ForegroundColor Yellow
+    $k = Read-Host "Закрыть его и запустить заново? (y/n)"
+    if ($k -match '^(y|д|yes|да|1)$') {
+      Stop-StaleJava
+      Start-Sleep -Seconds 2
+    } else {
+      Write-Host "Отменено." -ForegroundColor Yellow
+      Start-Sleep -Seconds 1
+      return
+    }
+  }
+  $java = Find-Java
+  if (-not $java) {
+    Write-Host "Java не найдена." -ForegroundColor Red
+    Write-Host "Установи Java 21+ (например Temurin JDK 21) или положи java.exe в папку runtime\bin внутри клиента." -ForegroundColor Yellow
+    Start-Sleep -Seconds 4
     return
   }
-  $java = Join-Path $script:MC "runtime\bin\java.exe"
-  if (-not (Test-Path -LiteralPath $java)) { $java = Join-Path $script:MC "runtime\bin\javaw.exe" }
-  if (-not (Test-Path -LiteralPath $java)) { $java = "javaw" }
+  $jmaj = Get-JavaMajor $java
+  if ($jmaj -lt 21) {
+    Write-Host "Найдена Java, но она слишком старая (версия $jmaj). Нужна 21 или новее." -ForegroundColor Red
+    Start-Sleep -Seconds 4
+    return
+  }
   Make-SessionJson
   $game = Join-Path $script:MC "game"
+  if (-not (Test-Path -LiteralPath $game)) { $game = $script:MC }
   $native = Join-Path $script:MC "natives"
+  $wild = Join-Path $script:MC "libraries\*"
+  $uuid = [guid]::NewGuid().ToString()
   Write-Host "Запуск клиента 1.21.11 для $($script:Nick) с $($cfg['RAM']) ГБ ОЗУ..." -ForegroundColor Green
-  $args = @(
-    "-Xms$($cfg['RAM'])G", "-Xmx$($cfg['RAM'])G",
-    "-Djava.library.path=`"$native`"",
-    "-cp", "`"$(Join-Path $script:MC 'libraries\*')`"",
-    "net.fabricmc.loader.impl.launch.knot.KnotClient",
-    "--version", "1.21.11", "--gameDir", "`"$game`"", "--assetsDir", "`"$(Join-Path $game 'assets')`"",
-    "--assetIndex", "29", "--username", $script:Nick, "--uuid", ([guid]::NewGuid().ToString()), "--accessToken", "0"
-  )
-  try { Start-Process -FilePath $java -ArgumentList $args -WorkingDirectory $script:MC } catch {
+  Write-Host "Java: $java (версия $jmaj)" -ForegroundColor DarkGray
+  $argStr = '"-Xms' + $cfg['RAM'] + 'G" "-Xmx' + $cfg['RAM'] + 'G" -Djava.library.path="' + $native + '" -cp "' + $wild + '" net.fabricmc.loader.impl.launch.knot.KnotClient --version 1.21.11 --gameDir "' + $game + '" --assetsDir "' + (Join-Path $game "assets") + '" --assetIndex 29 --username "' + $script:Nick + '" --uuid "' + $uuid + '" --accessToken "0"'
+  $stdout = Join-Path $script:MC "client_out.log"
+  $stderr = Join-Path $script:MC "client_err.log"
+  try {
+    Start-Process -FilePath $java -ArgumentList $argStr -WorkingDirectory $script:MC -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    Write-Host "Клиент запущен." -ForegroundColor Green
+    Write-Host "Если окно игры не появилось - смотри client_err.log в папке клиента." -ForegroundColor Yellow
+  } catch {
     Write-Host "Не удалось запустить Java: $($_.Exception.Message)" -ForegroundColor Red
+    Write-ErrLog "Launch: $($_.Exception.ToString())"
     Start-Sleep -Seconds 3
   }
 }
