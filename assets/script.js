@@ -13,14 +13,28 @@
     "sb_publishable_ljeSBj5cb5kfnuIaxyd_TQ_14RXJxFN"
   );
 
-  const toast = (msg) => {
+  const toast = (msg, ms) => {
     const t = $("toast");
     t.textContent = msg;
     t.hidden = false;
     t.classList.add("on");
     clearTimeout(t._h);
-    t._h = setTimeout(() => { t.classList.remove("on"); t.hidden = true; }, 2600);
+    t._h = setTimeout(() => { t.classList.remove("on"); t.hidden = true; }, ms || 2600);
   };
+
+  function copyText(txt) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(txt); return true; }
+    } catch (e) {}
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = txt; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); document.body.removeChild(ta);
+      return true;
+    } catch (e2) {}
+    return false;
+  }
 
   const hash = (s) => {
     let h = 0x811c9dc5;
@@ -665,7 +679,7 @@
     keys.sort((a, b) => b.id - a.id);
     k.innerHTML = "<table class='admin-table'><thead><tr><th>Ключ</th><th>Срок</th><th>Дата</th><th>Статус</th><th></th></tr></thead><tbody>"
       + keys.map((x) => "<tr><td class='mono'>" + x.code + "</td><td>" + (x.days || (x.months ? x.months * 30 : 30)) + " дн.</td><td>" + fmtDate(x.created_at) + "</td><td>"
-        + (x.used_by ? "использован: " + x.used_by : "свободен ✅") + "</td><td><button class='mini' data-delkey='" + x.id + "'>Удалить</button></td></tr>").join("")
+        + (x.used_by ? "использован: " + x.used_by : "свободен ✅") + "</td><td><button class='mini ok' data-cpy='" + x.code + "'>Копировать</button> <button class='mini' data-delkey='" + x.id + "'>Удалить</button></td></tr>").join("")
       + "</tbody></table>";
   }
 
@@ -674,12 +688,19 @@
     const code = "WZ-" + randAlnum(5) + "-" + randAlnum(5) + "-" + randAlnum(5) + "-" + randAlnum(5);
     await sbInsert("app_keys", { code, days, created_at: Date.now() });
     await renderKeys();
-    toast("Ключ: " + code + " (" + days + " дн.)");
+    copyText(code);
+    toast("Ключ скопирован в буфер: " + code + " (" + days + " дн.)", 7000);
   });
 
   $$("#adminKeys [data-days]").forEach((c) => c.addEventListener("click", () => { $("keyDays").value = c.dataset.days; }));
 
   $("keysList").addEventListener("click", async (e) => {
+    const c = e.target.closest("[data-cpy]");
+    if (c) {
+      if (copyText(c.dataset.cpy)) toast("Ключ скопирован");
+      else toast("Не удалось скопировать — выдели ключ вручную");
+      return;
+    }
     const b = e.target.closest("[data-delkey]");
     if (!b) return;
     await sbDelete("app_keys", { id: +b.dataset.delkey });
