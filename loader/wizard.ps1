@@ -1,5 +1,5 @@
 ﻿$ErrorActionPreference = "Stop"
-$VERSION = "1.0.0"
+$VERSION = "1.0.1"
 $HTTP = "https://raw.githubusercontent.com/r27006368-crypto/wizard-site/main/loader"
 $APP = "Wizard"
 $PF86 = [Environment]::GetFolderPath("ProgramFilesX86")
@@ -60,14 +60,32 @@ function Banner {
   Write-Host ""
 }
 
+function Write-ErrLog($msg) {
+  try {
+    $log = Join-Path $PSScriptRoot "wizard_error.log"
+    [System.IO.File]::AppendAllText($log, "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $msg`r`n", (New-Object System.Text.UTF8Encoding($true)))
+  } catch {}
+}
+
 function Ensure-Elevated {
   $id = [System.Security.Principal.WindowsIdentity]::GetCurrent()
   $p = New-Object System.Security.Principal.WindowsPrincipal($id)
   $isAdmin = $p.IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
   if (-not $isAdmin -and ($cfg['ROOT'].StartsWith($PF86, [System.StringComparison]::OrdinalIgnoreCase))) {
-    Write-Host "Нужны права администратора. Подтверди запрос UAC..." -ForegroundColor Yellow
-    Start-Sleep -Milliseconds 800
-    Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    Write-Host ""
+    Write-Host "Нужны права администратора, чтобы писать в $($cfg['ROOT'])." -ForegroundColor Yellow
+    Write-Host "Сейчас откроется запрос UAC. Нажми Да." -ForegroundColor Yellow
+    Start-Sleep -Seconds 2
+    try {
+      Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs -ErrorAction Stop | Out-Null
+    } catch {
+      Write-ErrLog "Elevate: $($_.Exception.Message)"
+      Write-Host ""
+      Write-Host "Запрос UAC не подтверждён или заблокирован." -ForegroundColor Red
+      Write-Host "Без прав администратора лаунчер не сможет работать с папкой клиента." -ForegroundColor Yellow
+      Read-Host "Нажми Enter, чтобы закрыть"
+      exit 1
+    }
     exit
   }
 }
@@ -309,34 +327,46 @@ function Ram-Menu {
   Start-Sleep -Seconds 2
 }
 
-$cfg = Read-Ini
-Ensure-Elevated
-Setup-Dirs
-Migrate-Client
-Rename-HighWay
-Self-Update
+try {
+  $cfg = Read-Ini
+  Ensure-Elevated
+  Setup-Dirs
+  Migrate-Client
+  Rename-HighWay
+  Self-Update
 
-while ($true) {
-  Banner
-  if (-not $script:Nick) {
-    if (-not (Check-Auth)) { continue }
+  while ($true) {
+    Banner
+    if (-not $script:Nick) {
+      if (-not (Check-Auth)) { continue }
+    }
+    Banner
+    Write-Host "  Добро пожаловать, $($script:Nick)   Роль: $($script:Role)" -ForegroundColor White
+    if ($script:SubOk) { Write-Host "  Подписка: активна" -ForegroundColor Green }
+    else { Write-Host "  Подписка: не активна / истекла" -ForegroundColor Red }
+    Write-Host ""
+    Write-Host "   1. Запуск клиента"
+    Write-Host "   2. Изменить корневую папку клиента"
+    Write-Host "   3. Изменить параметры ОЗУ (сейчас: $($cfg['RAM']) ГБ)"
+    Write-Host "   4. Выход"
+    Write-Host ""
+    $c = Read-Host "  Выбери пункт"
+    switch ($c) {
+      "1" { Launch-Client; Start-Sleep -Seconds 5; continue }
+      "2" { Root-Menu }
+      "3" { Ram-Menu }
+      "4" { exit }
+      default { }
+    }
   }
-  Banner
-  Write-Host "  Добро пожаловать, $($script:Nick)   Роль: $($script:Role)" -ForegroundColor White
-  if ($script:SubOk) { Write-Host "  Подписка: активна" -ForegroundColor Green }
-  else { Write-Host "  Подписка: не активна / истекла" -ForegroundColor Red }
+} catch {
+  Write-ErrLog $_.Exception.ToString()
   Write-Host ""
-  Write-Host "   1. Запуск клиента"
-  Write-Host "   2. Изменить корневую папку клиента"
-  Write-Host "   3. Изменить параметры ОЗУ (сейчас: $($cfg['RAM']) ГБ)"
-  Write-Host "   4. Выход"
+  Write-Host "Произошла ошибка:" -ForegroundColor Red
+  Write-Host $_.Exception.Message -ForegroundColor Red
   Write-Host ""
-  $c = Read-Host "  Выбери пункт"
-  switch ($c) {
-    "1" { Launch-Client; Start-Sleep -Seconds 5; continue }
-    "2" { Root-Menu }
-    "3" { Ram-Menu }
-    "4" { exit }
-    default { }
-  }
+  Write-Host "Подробности сохранены в wizard_error.log рядом с лаунчером." -ForegroundColor Yellow
+  Write-Host "Сообщи это сообщение в поддержку." -ForegroundColor Yellow
+  Read-Host "Нажми Enter, чтобы закрыть"
+  exit 1
 }
