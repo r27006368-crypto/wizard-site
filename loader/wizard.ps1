@@ -1,5 +1,5 @@
 ﻿$ErrorActionPreference = "Stop"
-$VERSION = "1.0.7"
+$VERSION = "1.0.8"
 $HTTP = "https://raw.githubusercontent.com/r27006368-crypto/wizard-site/main/loader"
 $APP = "Wizard"
 $PF86 = [Environment]::GetFolderPath("ProgramFilesX86")
@@ -64,7 +64,6 @@ function Banner {
   $sep = "=" * ([Math]::Max(20, $w - 4))
   Write-Host (Pad-C $sep) -ForegroundColor Cyan
   Write-Host (Pad-C "Wizard 1.21.11  |  premium Minecraft client") -ForegroundColor Cyan
-  Write-Host (Pad-C "Launcher version: $VERSION") -ForegroundColor DarkGray
   Write-Host ""
 }
 
@@ -366,7 +365,8 @@ function Launch-Client {
   try {
     Start-Process -FilePath $java -ArgumentList $argStr -WorkingDirectory $script:MC -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
     Write-Host "Клиент запущен." -ForegroundColor Green
-    Write-Host "Если окно игры не появилось - смотри client_err.log в папке клиента." -ForegroundColor Yellow
+    Start-Sleep -Seconds 2
+    exit
   } catch {
     Write-Host "Не удалось запустить Java: $($_.Exception.Message)" -ForegroundColor Red
     Write-ErrLog "Launch: $($_.Exception.ToString())"
