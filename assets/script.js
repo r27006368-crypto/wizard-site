@@ -370,7 +370,14 @@
       qrBox.innerHTML = '<img class="qr-img" src="' + s.sbp_qr_url + '" alt="QR оплаты">'
         + (s.sbp_req ? '<p class="muted small">' + s.sbp_req + "</p>" : "");
     } else {
-      qrBox.innerHTML = "<p class='muted'>QR оплаты пока не настроен. Напиши в поддержку в Discord.</p>";
+      qrBox.innerHTML = '<img class="qr-img" src="assets/qr.png" alt="QR оплаты">'
+        + '<p class="muted small">Отсканируй QR, оплати и укажи в комментарии свой ник</p>'
+        + (s && s.sbp_req ? '<p class="muted small">' + s.sbp_req + "</p>" : "");
+      const im = qrBox.querySelector("img");
+      im.onerror = () => {
+        qrBox.innerHTML = "<p class='muted'>QR оплаты пока не настроен. Напиши в поддержку в Discord.</p>";
+        if (s && s.sbp_req) qrBox.insertAdjacentHTML("beforeend", '<p class="muted small">' + s.sbp_req + "</p>");
+      };
     }
     $("buyOverlay").hidden = false;
   }
