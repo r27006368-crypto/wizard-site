@@ -524,6 +524,42 @@
       + "</tbody></table>";
   }
 
+  function parseDur(s) {
+    s = String(s || "").trim().toLowerCase();
+    if (!s) return null;
+    if (["б", "беск", "бесконечно", "∞", "inf", "-1"].includes(s)) return { forever: true };
+    const m = s.match(/^(\d+(?:[.,]\d+)?)\s*([чhдdмmггy]|мес|год|года|году|лет|years?)?$/i);
+    if (!m) return null;
+    const n = parseFloat(m[1].replace(",", "."));
+    if (!(n > 0)) return null;
+    const DAY = 86400000;
+    const u = (m[2] || "д").toLowerCase();
+    if (u === "ч" || u === "h") return { ms: n * 3600000 };
+    if (u === "г" || u === "гy" || u === "год" || u === "года" || u === "году" || u === "лет" || u === "y") return { ms: n * 365 * DAY };
+    if (u === "мес" || u === "м") return { ms: n * 30 * DAY };
+    return { ms: n * DAY };
+  }
+
+  $("grantBtn").addEventListener("click", async () => {
+    const nick = $("grantNick").value.trim();
+    const dur = $("grantDur").value.trim();
+    if (!nick) return toast("Впиши ник");
+    const u = (await sbGetWhere("accounts", { nick }))[0];
+    if (!u) return toast("Аккаунт не найден: " + nick);
+    const p = parseDur(dur);
+    if (!p) return toast("Формат срока: 24ч / 1д / 1г / б");
+    const now = Date.now();
+    if (p.forever) {
+      await sbUpdate("accounts", { id: u.id }, { sub_from: u.sub_from || now, sub_forever: true });
+    } else {
+      const base = isActive(u) && u.sub_to ? u.sub_to : now;
+      await sbUpdate("accounts", { id: u.id }, { sub_from: u.sub_from || now, sub_to: base + p.ms, sub_forever: false });
+    }
+    logEvent("grant", nick + " " + dur.toLowerCase());
+    toast("Подписка выдана → " + nick);
+    $("grantNick").value = ""; $("grantDur").value = "";
+  });
+
   $$("[data-buy]").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (!cur) { openAuth("login"); return toast("Сначала войди в аккаунт"); }
@@ -575,8 +611,12 @@
     const code = $("keyInput").value.trim();
     if (!code) return toast("Впиши ключ активации");
 
-    const rows = await sbGetWhere("app_keys", { code });
-    const k = rows[0];
+    let rows = await sbGetWhere("app_keys", { code });
+    let k = rows[0];
+    if (!k) {
+      const upper = await sbGetWhere("app_keys", { code: code.toUpperCase() });
+      k = upper[0];
+    }
     if (!k) return toast("Такого ключа нет");
     if (k.used_by) return toast("Ключ уже использован");
 
@@ -624,6 +664,7 @@
     t.addEventListener("click", () => {
       $$("#adminTabs .tab").forEach((x) => x.classList.toggle("active", x === t));
       $("adminUsers").hidden = t.dataset.amt !== "users";
+      $("adminGrant").hidden = t.dataset.amt !== "grant";
       $("adminOrders").hidden = t.dataset.amt !== "orders";
       $("adminKeys").hidden = t.dataset.amt !== "keys";
       $("adminPromos").hidden = t.dataset.amt !== "promos";

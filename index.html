@@ -282,6 +282,7 @@
       </div>
       <div class="auth-tabs" id="adminTabs">
         <button class="tab active" data-amt="users">Пользователи</button>
+        <button class="tab" data-amt="grant">Выдать</button>
         <button class="tab" data-amt="orders">Заказы</button>
         <button class="tab" data-amt="keys">Ключи</button>
         <button class="tab" data-amt="promos">Промокоды</button>
@@ -289,6 +290,19 @@
       </div>
 
       <div id="adminUsers" class="admin-scroll"></div>
+
+      <div id="adminGrant" class="admin-scroll" hidden>
+        <p class="muted tiny" style="margin-bottom:10px">Выдать подписку вручную. Формат срока: <b>24ч</b> (часы), <b>1д</b> (дни), <b>1г</b> (годы) или <b>б</b> (бесконечно).</p>
+        <div class="field">
+          <label for="grantNick">Ник</label>
+          <input id="grantNick" placeholder="Ник аккаунта">
+        </div>
+        <div class="field">
+          <label for="grantDur">Срок</label>
+          <input id="grantDur" placeholder="например 24ч / 1д / 1г / б">
+        </div>
+        <button class="btn primary w100" id="grantBtn">Выдать подписку</button>
+      </div>
 
       <div id="adminOrders" class="admin-scroll" hidden></div>
 
@@ -345,6 +359,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>if (!window.supabase) document.write('<script src="https://unpkg.com/@supabase/supabase-js@2"><\/script>');</script>
-<script src="assets/script.js?v=7"></script>
+<script src="assets/script.js?v=8"></script>
 </body>
 </html>
