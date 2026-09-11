@@ -361,7 +361,7 @@ main { position: relative; z-index: 1; }
 .profile-empty a { color: var(--violet); font-weight: 600; }
 
 .profile-card {
-  max-width: 900px; margin: 30px auto; padding: 24px;
+  max-width: 1000px; margin: 30px auto; padding: 30px;
   background: var(--panel); border: 1px solid var(--line);
   border-radius: 18px; box-shadow: 0 18px 60px var(--shadow);
 }
@@ -384,21 +384,20 @@ main { position: relative; z-index: 1; }
 .grp-user { background: rgba(255,255,255,.08); color: var(--muted); }
 
 .p-list {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  display: flex; flex-direction: column; gap: 8px;
   max-height: none; overflow: visible;
 }
 .p-list > div {
-  display: flex; justify-content: space-between; align-items: center; gap: 12px;
-  padding: 11px 15px; border: 1px solid var(--line); border-radius: 12px;
+  display: flex; justify-content: space-between; align-items: center; gap: 14px;
+  padding: 12px 18px; border: 1px solid var(--line); border-radius: 12px;
   background: rgba(0,0,0,.12);
 }
 .p-list span { color: var(--muted); font-size: 13px; flex: none; }
-.p-list b { font-size: 14px; text-align: right; word-break: break-all; }
+.p-list b { font-size: 15px; text-align: right; word-break: break-all; }
 
-.p-actions { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 10px; }
-.p-actions .w100 { width: auto; }
-.p-actions .btn { flex: 1 1 auto; min-width: 170px; }
-.p-actions .p-panel { flex-basis: 100%; }
+.p-actions { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+.p-actions .btn { width: 100%; }
+.p-actions .p-panel { width: 100%; }
 .w100 { width: 100%; }
 .btn.danger { background: rgba(220,38,38,.14); color: var(--danger); border: 1px solid rgba(220,38,38,.35); }
 
@@ -416,10 +415,16 @@ main { position: relative; z-index: 1; }
 
 .profile-card .btn.disabled { opacity: .55; }
 
-.admin-modal { width: min(96vw, 1040px); }
+.admin-modal {
+  width: min(94vw, 800px);
+  height: min(88vh, 780px);
+  margin: auto;
+  display: flex; flex-direction: column;
+  padding: 24px;
+}
 .admin-gate { padding: 8px 0; }
-.admin-main { display: flex; flex-direction: column; gap: 10px; }
-.admin-scroll { max-height: 62vh; overflow: auto; padding: 4px; }
+.admin-main { display: flex; flex-direction: column; gap: 10px; flex: 1 1 auto; min-height: 0; }
+.admin-scroll { flex: 1 1 auto; max-height: none; overflow: auto; padding: 4px; }
 .admin-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 
 .admin-table { width: 100%; border-collapse: collapse; font-size: 14px; }

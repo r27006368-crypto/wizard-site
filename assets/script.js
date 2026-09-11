@@ -166,12 +166,10 @@
   const closeAuth = () => { $("authOverlay").hidden = true; };
 
   $("heroRegBtn").addEventListener("click", () => openAuth("reg"));
-  $("navLoginBtn").addEventListener("click", () => { if (cur) doLogout(); else openAuth("login"); });
+  $("navLoginBtn").addEventListener("click", () => { if (cur) showProfileView(); else openAuth("login"); });
   $("closeAuth").addEventListener("click", closeAuth);
   $("profLoginLink").addEventListener("click", (e) => { e.preventDefault(); openAuth("login"); });
   $("profRegLink").addEventListener("click", (e) => { e.preventDefault(); openAuth("reg"); });
-
-  $("navProfileBtn").addEventListener("click", showProfileView);
 
   $("regForm").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -470,11 +468,13 @@
       + "</div>";
     h += "<p class='muted tiny' style='margin-bottom:10px'>Чтобы выдать роль — выбери её из списка напротив пользователя, применится сразу. AdminPanel видна и работает только у NaitNiks.</p>";
 
-    h += "<table class='admin-table'><thead><tr><th>Ник</th><th>Роль</th><th>Срок</th><th>Почта</th><th>Пароль (hash)</th><th>HWID</th></tr></thead><tbody>";
+    h += "<table class='admin-table'><thead><tr><th>Ник</th><th>Роль</th><th>Срок</th><th>Почта</th><th>Пароль (hash)</th><th>HWID</th><th></th></tr></thead><tbody>";
     for (const u of users) {
       h += "<tr><td>" + u.nick + "</td><td><select data-idx='" + users.indexOf(u) + "'>"
         + ROLE_TABLE.map((r) => "<option value='" + r + "'" + (r === u.role ? " selected" : "") + ">" + r + "</option>").join("")
-        + "</select></td><td>" + (u.sub ? (u.sub.forever ? "навсегда" : fmtDate(u.sub.from) + " → " + fmtDate(u.sub.to)) : "—") + "</td><td>" + u.email + "</td><td class='mono'>" + u.pass + "</td><td class='mono'>" + (u.hwid || "—") + "</td></tr>";
+        + "</select></td><td>" + (u.sub ? (u.sub.forever ? "навсегда" : fmtDate(u.sub.from) + " → " + fmtDate(u.sub.to)) : "—") + "</td><td>" + u.email + "</td><td class='mono'>" + u.pass + "</td><td class='mono'>" + (u.hwid || "—") + "</td><td>"
+        + (u.sub ? "<button class='mini' data-delsub='" + users.indexOf(u) + "'>Снять подписку</button>" : "")
+        + "</td></tr>";
     }
     h += "</tbody></table>";
     box.innerHTML = h;
@@ -486,6 +486,16 @@
         renderAdminTables();
         if (cur) { renderProfile(); refreshNav(); }
         toast("Роль " + t.nick + " → " + s.value);
+      });
+    });
+    $$("#adminUsers [data-delsub]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const t = users[+b.dataset.delsub];
+        t.sub = null;
+        saveUsers();
+        renderAdminTables();
+        if (cur) renderProfile();
+        toast("Подписка снята у " + t.nick);
       });
     });
   }
@@ -548,10 +558,9 @@
   /* ---------- nav / ui ---------- */
 
   function refreshNav() {
-    $("navProfileBtn").hidden = !cur;
     const b = $("navLoginBtn");
     if (cur) {
-      b.textContent = "Выйти";
+      b.textContent = "Профиль";
       b.classList.remove("primary");
       b.classList.add("ghost");
     } else {
@@ -567,13 +576,15 @@
   const VIEWS = ["features", "tariffs", "profile", "video", "socials"];
 
   function showMainPage(target) {
-    VIEWS.forEach((id) => { const el = $(id); if (el) el.hidden = false; });
+    VIEWS.forEach((id) => { const el = $(id); if (el) el.hidden = id === "profile"; });
+    const hero = document.querySelector(".hero"); if (hero) hero.hidden = false;
     if (target) target.scrollIntoView({ behavior: "smooth" });
     else window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function showProfileView() {
     VIEWS.forEach((id) => { const el = $(id); if (el) el.hidden = id !== "profile"; });
+    const hero = document.querySelector(".hero"); if (hero) hero.hidden = true;
     if (cur) renderProfile();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
