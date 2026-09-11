@@ -364,21 +364,18 @@
     const qrBox = $("qrBox");
     qrBox.innerHTML = '<p class="muted">Загрузка QR оплаты…</p>';
     const s = await getSetting();
-    if (DB_ERR) {
-      qrBox.innerHTML = "<p class='muted'>QR не загрузился: твоя сеть блокирует supabase.co (нужен VPN).</p>";
-    } else if (s && s.sbp_qr_url) {
-      qrBox.innerHTML = '<img class="qr-img" src="' + s.sbp_qr_url + '" alt="QR оплаты">'
-        + (s.sbp_req ? '<p class="muted small">' + s.sbp_req + "</p>" : "");
-    } else {
-      qrBox.innerHTML = '<img class="qr-img" src="assets/qr.png" alt="QR оплаты">'
-        + '<p class="muted small">Отсканируй QR, оплати и укажи в комментарии свой ник</p>'
-        + (s && s.sbp_req ? '<p class="muted small">' + s.sbp_req + "</p>" : "");
-      const im = qrBox.querySelector("img");
-      im.onerror = () => {
-        qrBox.innerHTML = "<p class='muted'>QR оплаты пока не настроен. Напиши в поддержку в Discord.</p>";
-        if (s && s.sbp_req) qrBox.insertAdjacentHTML("beforeend", '<p class="muted small">' + s.sbp_req + "</p>");
-      };
-    }
+    let src = (s && s.sbp_qr_url) || "assets/qr.png";
+    let extra = "";
+    if (s && s.sbp_req) extra += '<p class="muted small">' + s.sbp_req + "</p>";
+    if (DB_ERR) extra += "<p class='muted small'>База недоступна (нужен VPN) — QR виден, но заявка не отправится.</p>";
+    qrBox.innerHTML = '<img class="qr-img" src="' + src + '" alt="QR оплаты">'
+      + (src === "assets/qr.png" ? '<p class="muted small">Отсканируй QR камерой и укажи в комментарии свой ник</p>' : "")
+      + extra;
+    const im = qrBox.querySelector("img");
+    im.onerror = () => {
+      qrBox.innerHTML = "<p class='muted'>QR оплаты пока не настроен. Напиши в поддержку в Discord.</p>";
+      if (extra) qrBox.insertAdjacentHTML("beforeend", extra);
+    };
     $("buyOverlay").hidden = false;
   }
 
