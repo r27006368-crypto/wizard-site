@@ -303,7 +303,9 @@
   const openAuth = (mode) => { switchMode(mode || activeMode); $("authOverlay").hidden = false; };
   const closeAuth = () => { $("authOverlay").hidden = true; };
 
-  $("heroRegBtn").addEventListener("click", () => openAuth("reg"));
+  $("heroMainBtn").addEventListener("click", () => { if (cur) showProfileView(); else openAuth("reg"); });
+  $("heroTariffBtn").addEventListener("click", (e) => { const t = $(e.currentTarget.getAttribute("href").slice(1)); if (t) { e.preventDefault(); showMainPage(t); } });
+
   $("navLoginBtn").addEventListener("click", () => { if (cur) showProfileView(); else openAuth("login"); });
   $("closeAuth").addEventListener("click", closeAuth);
   $("profLoginLink").addEventListener("click", (e) => { e.preventDefault(); openAuth("login"); });
@@ -880,6 +882,19 @@
       b.classList.add("primary"); b.classList.remove("ghost");
     }
     $("logoutBtn").textContent = "Выйти (" + (cur ? cur.nick : "") + ")";
+    heroForAuth();
+  }
+
+  function heroForAuth() {
+    const on = !!cur;
+    const eye = $("heroEyebrow"); if (eye) eye.hidden = on;
+    const m = $("heroMainBtn");
+    if (m) m.textContent = on ? "Мой профиль" : "Зарегистрироваться";
+    const t = $("heroTariffBtn");
+    if (t) {
+      if (on && isActive(cur)) { t.textContent = "Скачать клиент ✓"; t.setAttribute("href", "#profile"); }
+      else { t.textContent = "Выбрать тариф"; t.setAttribute("href", "#tariffs"); }
+    }
   }
 
   $$('a[href^="#"]').forEach((a) => {
@@ -898,6 +913,15 @@
 
   /* ---------- init ---------- */
 
+  async function entranceCheck() {
+    try {
+      if (sessionStorage.getItem("wizard.ab") === "1") return;
+      if (!window.crypto || !window.crypto.subtle) return;
+      await ensureProof("visit:" + randAlnum(6).toLowerCase(), true);
+      sessionStorage.setItem("wizard.ab", "1");
+    } catch (e) {}
+  }
+
   async function init() {
     $("year").textContent = new Date().getFullYear();
 
@@ -915,6 +939,7 @@
       logEvent("autologin", cur.nick);
       toast("Авто-вход: " + cur.nick);
     }
+    entranceCheck();
   }
 
   init();
