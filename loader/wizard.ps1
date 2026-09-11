@@ -1,5 +1,5 @@
 ﻿$ErrorActionPreference = "Stop"
-$VERSION = "1.0.6"
+$VERSION = "1.0.7"
 $HTTP = "https://raw.githubusercontent.com/r27006368-crypto/wizard-site/main/loader"
 $APP = "Wizard"
 $PF86 = [Environment]::GetFolderPath("ProgramFilesX86")
@@ -130,6 +130,46 @@ function Rename-HighWay {
         try { Rename-Item -LiteralPath $_.FullName -NewName $new -Force -ErrorAction Stop } catch {}
       }
     }
+}
+
+function Test-ProtectedLoader([string]$loader) {
+  if (-not (Test-Path -LiteralPath $loader)) { return $false }
+  try {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($loader)
+    try {
+      $entry = $zip.Entries | Where-Object { $_.FullName -eq 'net/fabricmc/loader/impl/launch/knot/KnotClient.class' } | Select-Object -First 1
+      if (-not $entry) { return $false }
+      $s = $entry.Open()
+      try {
+        $b = New-Object byte[] 4
+        $s.Read($b, 0, 4) | Out-Null
+        return ($b[0] -eq 0xDE -and $b[1] -eq 0xAD)
+      } finally { $s.Dispose() }
+    } finally { $zip.Dispose() }
+  } catch { return $false }
+}
+
+function Repair-ProtectedLoader {
+  $loader = Join-Path $script:MC "libraries\fabric-loader-0.19.3.jar"
+  if (-not (Test-Path -LiteralPath $loader)) { return }
+  if (-not (Test-ProtectedLoader $loader)) { return }
+  Write-Host "Обнаружен защищённый fabric-loader (HighWay). Меняю на официальный..." -ForegroundColor Yellow
+  $bakDir = Join-Path $cfg['ROOT'] "backup"
+  New-Item -ItemType Directory -Path $bakDir -Force | Out-Null
+  $bak = Join-Path $bakDir "fabric-loader-0.19.3.protected.jar"
+  $dl = Join-Path $env:TEMP "fabric-loader-0.19.3.official.jar"
+  try {
+    Move-Item -LiteralPath $loader -Destination $bak -Force -ErrorAction Stop
+    Invoke-WebRequest -Uri "https://maven.fabricmc.net/net/fabricmc/fabric-loader/0.19.3/fabric-loader-0.19.3.jar" -OutFile $dl -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+    Copy-Item -LiteralPath $dl -Destination $loader -Force -ErrorAction Stop
+    if (Test-ProtectedLoader $loader) { throw "Файл всё ещё защищён" }
+    Write-Host "Готово: fabric-loader заменён на официальный." -ForegroundColor Green
+  } catch {
+    if (-not (Test-Path -LiteralPath $loader) -and (Test-Path -LiteralPath $bak)) { Copy-Item -LiteralPath $bak -Destination $loader -Force }
+    Write-Host "Не удалось заменить loader: $($_.Exception.Message)" -ForegroundColor Red
+    Write-ErrLog "RepairLoader: $($_.Exception.ToString())"
+  }
 }
 
 function Check-JavaRunning {
@@ -294,6 +334,7 @@ function Launch-Client {
       return
     }
   }
+  Repair-ProtectedLoader
   $java = Find-Java
   if (-not $java) {
     Write-Host "Java 21 не найдена." -ForegroundColor Red
