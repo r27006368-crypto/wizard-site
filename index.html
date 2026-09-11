@@ -6,7 +6,7 @@
 <title>Wizard — твой премиум клиент</title>
 <meta name="description" content="Wizard — премиум чит клиент для Minecraft. Регистрация, профиль, тарифы, ключи, сброс HWID.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%237c3aed'/%3E%3Ctext x='16' y='23' font-size='20' font-weight='900' text-anchor='middle' fill='white' font-family='Arial'>W</text%3E%3C/svg%3E">
-<link rel="stylesheet" href="assets/styles.css?v=4">
+<link rel="stylesheet" href="assets/styles.css?v=5">
 <script>
   try {
     var t = localStorage.getItem("wizard.theme");
@@ -144,8 +144,6 @@
         <div><span>HWID</span><b id="phwid">HWID не активен</b></div>
       </div>
 
-      <p class="order-status" id="pOrderStatus" hidden></p>
-
       <div class="p-actions">
         <button class="btn primary w100" id="dlClient">Скачать клиент</button>
         <button class="btn ghost w100" id="buyClient">Купить клиент</button>
@@ -183,7 +181,7 @@
 
   <section class="section" id="socials">
     <h2 class="sec-title">Соцсети и поддержка</h2>
-    <p class="sec-sub">Вопросы по установке, оплате и HWID — здесь</p>
+    <p class="sec-sub">Вопросы по установке, оплате и HWID — пишите сюда в Discord</p>
     <div class="support-grid">
       <a class="card" href="https://discord.gg/82JEz3hcJf" target="_blank" rel="noopener">Discord <span>→</span></a>
       <a class="card" href="#" target="_blank" rel="noopener">YouTube <span>→</span></a>
@@ -260,7 +258,7 @@
     <div class="row">
       <button class="btn primary w100" id="buyDoneBtn">Я оплатил — ждать активацию</button>
     </div>
-    <p class="muted tiny" id="buyNote">Оплати по QR из любого банковского приложения и укажи в комментарии свой ник. Админ подтвердит оплату — и подписка включится.</p>
+    <p class="muted tiny" id="buyNote">Оплати по QR, укажи ник в комментарии — и жми «Я оплатил».</p>
   </div>
 </div>
 
@@ -287,32 +285,26 @@
         <button class="tab" data-amt="orders">Заказы</button>
         <button class="tab" data-amt="keys">Ключи</button>
         <button class="tab" data-amt="promos">Промокоды</button>
-        <button class="tab" data-amt="settings">Настройки</button>
+        <button class="tab" data-amt="logs">Логи</button>
       </div>
 
       <div id="adminUsers" class="admin-scroll"></div>
 
       <div id="adminOrders" class="admin-scroll" hidden></div>
 
-      <div id="adminSettings" class="admin-scroll" hidden>
-        <p class="muted tiny" style="margin-bottom:10px">Сюда добавь свой QR оплаты (СБП из Сбера/Т-Банка/Альфы) — клиенты будут платить по нему в любом банковском приложении.</p>
-        <div class="field">
-          <label for="sbpQrUrl">QR-код СБП (ссылка на картинку)</label>
-          <input id="sbpQrUrl" placeholder="https://.../qr.png — картинку загрузи на imgbb и вставь ссылку">
-        </div>
-        <div class="field">
-          <label for="sbpReq">Реквизиты / подпись к оплате</label>
-          <input id="sbpReq" placeholder="Например: СБП по номеру телефона +7 900 000-00-00">
-        </div>
-        <div class="row">
-          <button class="btn primary w100" id="saveSettingsBtn">Сохранить настройки</button>
-        </div>
-      </div>
+      <div id="adminLogs" class="admin-scroll" hidden></div>
 
       <div id="adminKeys" class="admin-scroll" hidden>
         <div class="field">
-          <label for="keyMonths">Срок ключа</label>
-          <input id="keyMonths" type="number" min="1" max="120" value="3" placeholder="Сколько месяцев действует (например 3)">
+          <label for="keyDays">Ключ на сколько дней</label>
+          <input id="keyDays" type="number" min="1" max="3650" value="30">
+        </div>
+        <div class="chips">
+          <button class="chip" data-days="7">7 дн</button>
+          <button class="chip" data-days="30">30 дн</button>
+          <button class="chip" data-days="90">3 мес</button>
+          <button class="chip" data-days="180">6 мес</button>
+          <button class="chip" data-days="365">1 год</button>
         </div>
         <button class="btn primary w100" id="genKeyBtn">Сгенерировать ключ</button>
         <div id="keysList" class="admin-list"></div>
@@ -327,6 +319,20 @@
           <label for="promoPercent">Процент скидки</label>
           <input id="promoPercent" type="number" min="1" max="100" placeholder="например 25">
         </div>
+        <div class="field">
+          <label for="promoUses">Сколько использований</label>
+          <select id="promoUses">
+            <option value="1">1</option>
+            <option value="15">15</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+            <option value="150">150</option>
+            <option value="250">250</option>
+            <option value="500">500</option>
+            <option value="1000">1000</option>
+            <option value="-1">♾ Бесконечно</option>
+          </select>
+        </div>
         <button class="btn primary w100" id="genPromoBtn">Сгенерировать промокод</button>
         <div id="promosList" class="admin-list"></div>
       </div>
@@ -339,6 +345,6 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>if (!window.supabase) document.write('<script src="https://unpkg.com/@supabase/supabase-js@2"><\/script>');</script>
-<script src="assets/script.js?v=4"></script>
+<script src="assets/script.js?v=5"></script>
 </body>
 </html>
