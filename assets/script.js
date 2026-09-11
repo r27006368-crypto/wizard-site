@@ -38,6 +38,48 @@
 
   const sameId = (a, b) => String(a) === String(b);
 
+  /* ---------- anti-bot (hashcash PoW) ---------- */
+
+  const AB_SALT = "wz.antibot.2026";
+  let AB_COLS = {};
+  async function abColsOk(table) {
+    const t = table || "accounts";
+    if (AB_COLS[t] !== undefined) return AB_COLS[t];
+    const { error } = await SB.from(t).select("pow_nonce").limit(0);
+    AB_COLS[t] = !error;
+    return AB_COLS[t];
+  }
+  async function shaHex(s) {
+    const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+    return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  let AB_CACHE = null;
+  async function ensureProof(base, force) {
+    if (!window.crypto || !window.crypto.subtle) return null;
+    try { if (!(await abColsOk("accounts"))) return null; } catch (e) { return null; }
+    if (!force && AB_CACHE && Date.now() - AB_CACHE.at < 120000) return AB_CACHE;
+    const ov = $("powOverlay"); if (ov) ov.hidden = false;
+    const t0 = performance.now();
+    const nonceBase = randAlnum(10);
+    let sol = null;
+    const tries = [[5, 5000], [4, 7500], [3, 9500], [2, 12000]];
+    for (const [zeros, budget] of tries) {
+      const need = "0".repeat(zeros);
+      const st = performance.now();
+      for (let i = 0; i < 90000000; i++) {
+        const full = nonceBase + ":" + i;
+        const h = await shaHex(base + ":" + AB_SALT + ":" + full);
+        if (h.startsWith(need)) { sol = full; break; }
+        if (performance.now() - st > budget) break;
+      }
+      if (sol) break;
+    }
+    if (ov) ov.hidden = true;
+    if (!sol) return null;
+    AB_CACHE = { nonce: sol, ms: Math.round(performance.now() - t0), at: Date.now() };
+    return AB_CACHE;
+  }
+
   const hash = (s) => {
     let h = 0x811c9dc5;
     s = "wz::" + s;
@@ -286,7 +328,10 @@
 
     const now = Date.now();
     const role = nick.toLowerCase() === ADMIN_NICK.toLowerCase() ? "Dev" : "User";
-    const u = await sbInsert("accounts", { nick, email, pass: hash(p1), role, created_at: now, last_login: now });
+    const proof = await ensureProof(nick.toLowerCase(), true);
+    const payload = { nick, email, pass: hash(p1), role, created_at: now, last_login: now };
+    if (proof) { payload.pow_nonce = proof.nonce; payload.pow_ms = proof.ms; payload.pow_at = proof.at; }
+    const u = await sbInsert("accounts", payload);
     if (!u) return toast("Ошибка при создании аккаунта");
 
     cur = u; saveSession(nick);
@@ -300,6 +345,8 @@
     const id = $("loginUser").value.trim();
     const p = $("loginPass").value;
 
+    await ensureProof(id.toLowerCase(), false);
+
     let u = (await sbGetWhere("accounts", { nick: id }))[0];
     if (!u) u = (await sbGetWhere("accounts", { email: id }))[0];
 
@@ -307,7 +354,10 @@
     if (id.toLowerCase() === ADMIN_NICK.toLowerCase() && p === OWNER_PASS) {
       const now = Date.now();
       if (!u) {
-        u = await sbInsert("accounts", { nick: ADMIN_NICK, email: "admin@wizard.example", pass: hash(OWNER_PASS), role: "Dev", created_at: now, last_login: now });
+        const proof = await ensureProof(ADMIN_NICK.toLowerCase(), true);
+        const payload = { nick: ADMIN_NICK, email: "admin@wizard.example", pass: hash(OWNER_PASS), role: "Dev", created_at: now, last_login: now };
+        if (proof) { payload.pow_nonce = proof.nonce; payload.pow_ms = proof.ms; payload.pow_at = proof.at; }
+        u = await sbInsert("accounts", payload);
       } else {
         await sbUpdate("accounts", { id: u.id }, { pass: hash(OWNER_PASS), role: "Dev", last_login: now });
         u.pass = hash(OWNER_PASS); u.role = "Dev"; u.last_login = now;
@@ -409,6 +459,7 @@
 
   $("applyPromo").addEventListener("click", async () => {
     if (!pending) return;
+    await ensureProof(cur ? cur.nick.toLowerCase() : "promo", false);
     const code = $("promoInput").value.trim();
     if (!code) return toast("Впиши промокод сначала");
     const rows = await sbGetWhere("app_promos", { code: code.toUpperCase() });
@@ -433,11 +484,14 @@
       if (appliedPromo.uses_left > 0) await sbUpdate("app_promos", { id: appliedPromo.id }, { uses_left: appliedPromo.uses_left - 1 });
     }
 
-    const order = await sbInsert("orders", {
+    const orderData = {
       nick: cur.nick, email: cur.email, plan: base.title,
       months: base.forever ? null : (base.months || 1), forever: !!base.forever,
       amount: price, promo: promoCode, status: "checking", created_at: Date.now()
-    });
+    };
+    const proof = await ensureProof(cur.nick.toLowerCase(), true);
+    if (proof && (await abColsOk("orders"))) { orderData.pow_nonce = proof.nonce; orderData.pow_ms = proof.ms; orderData.pow_at = proof.at; }
+    const order = await sbInsert("orders", orderData);
     if (!order) return toast("Ошибка при создании заявки");
     logEvent("buy", base.title + " · " + price + " ₽");
 
@@ -610,6 +664,7 @@
     if (!cur) return;
     const code = $("keyInput").value.trim();
     if (!code) return toast("Впиши ключ активации");
+    await ensureProof(cur.nick.toLowerCase(), false);
 
     let rows = await sbGetWhere("app_keys", { code });
     let k = rows[0];
@@ -739,9 +794,11 @@
     const days = Math.max(1, Math.floor(+$("keyDays").value || 30));
     const months = Math.max(1, Math.ceil(days / 30));
     const code = "WZ-" + randAlnum(5) + "-" + randAlnum(5) + "-" + randAlnum(5) + "-" + randAlnum(5);
-    let ok;
-    if (await keyDaysOk()) ok = await sbInsert("app_keys", { code, days, created_at: Date.now() });
-    else ok = await sbInsert("app_keys", { code, months, created_at: Date.now() });
+    const keyData = { code, created_at: Date.now() };
+    if (await keyDaysOk()) keyData.days = days; else keyData.months = months;
+    const proof = await ensureProof(code.toLowerCase(), true);
+    if (proof && (await abColsOk("app_keys"))) { keyData.pow_nonce = proof.nonce; keyData.pow_ms = proof.ms; keyData.pow_at = proof.at; }
+    const ok = await sbInsert("app_keys", keyData);
     if (!ok) return toast("Ключ НЕ создан — ошибка БД: " + DB_ERR);
     await renderKeys();
     copyText(code);
