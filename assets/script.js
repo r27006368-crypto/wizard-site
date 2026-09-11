@@ -296,7 +296,7 @@
 
   const roleCls = (r) => "grp-" + String(r).toLowerCase().replace(".", "");
 
-  function renderProfile() {
+  async function renderProfile() {
     if (!cur) { $("profileNeedLogin").hidden = false; $("profileCard").hidden = true; return; }
     $("profileNeedLogin").hidden = true;
     $("profileCard").hidden = false;
@@ -321,6 +321,18 @@
     else { dl.textContent = "Купить клиент → Скачать"; dl.classList.add("disabled"); }
 
     $("adminBtn").hidden = cur.nick.toLowerCase() !== ADMIN_NICK.toLowerCase();
+
+    const ps = $("pOrderStatus");
+    const myOrders = await sbGetWhere("orders", { nick: cur.nick });
+    const last = myOrders.sort((a, b) => b.id - a.id)[0];
+    if (last) {
+      const stTxt = last.status === "checking" ? "⏳ На проверке" : (last.status === "confirmed" ? "✅ Оплачен и активирован" : "❌ Отклонён");
+      ps.textContent = "Заявка на оплату · " + last.plan + " · " + stTxt;
+      ps.className = "order-status " + last.status;
+      ps.hidden = false;
+    } else {
+      ps.hidden = true;
+    }
   }
 
   function doLogout() {
@@ -337,13 +349,29 @@
   let pending = null;
   let appliedPromo = null;
 
-  function openBuy(title, desc, price, months, forever) {
+  async function getSetting() {
+    const rows = await sbGet("settings");
+    return rows[0] || null;
+  }
+
+  async function openBuy(title, desc, price, months, forever) {
     appliedPromo = null;
     $("promoInput").value = "";
-    $("buyTitle").textContent = "Оформление";
+    $("buyTitle").textContent = "Оформление — " + title;
     $("buyDesc").textContent = desc;
     $("finalPrice").textContent = price + " ₽";
     pending = { title, desc, price, months, forever };
+    const qrBox = $("qrBox");
+    qrBox.innerHTML = '<p class="muted">Загрузка QR оплаты…</p>';
+    const s = await getSetting();
+    if (DB_ERR) {
+      qrBox.innerHTML = "<p class='muted'>QR не загрузился: твоя сеть блокирует supabase.co (нужен VPN).</p>";
+    } else if (s && s.sbp_qr_url) {
+      qrBox.innerHTML = '<img class="qr-img" src="' + s.sbp_qr_url + '" alt="QR оплаты">'
+        + (s.sbp_req ? '<p class="muted small">' + s.sbp_req + "</p>" : "");
+    } else {
+      qrBox.innerHTML = "<p class='muted'>QR оплаты пока не настроен. Напиши в поддержку в Discord.</p>";
+    }
     $("buyOverlay").hidden = false;
   }
 
@@ -364,39 +392,112 @@
     toast("Промокод применён: −" + p.percent + "%");
   });
 
-  $("payBtn").addEventListener("click", async () => {
+  $("buyDoneBtn").addEventListener("click", async () => {
     if (!pending) return;
     if (!cur) { $("buyOverlay").hidden = true; pending = null; return toast("Сначала войди в аккаунт"); }
     const base = pending;
     let price = base.price;
+    let promoCode = null;
     if (appliedPromo) {
       price = Math.round(base.price * (1 - appliedPromo.percent / 100));
+      promoCode = appliedPromo.code;
       await sbUpdate("app_promos", { id: appliedPromo.id }, { uses_left: appliedPromo.uses_left - 1 });
     }
 
-    const now = Date.now();
-    let sub_from = now, sub_to = now, sub_forever = false;
+    const order = await sbInsert("orders", {
+      nick: cur.nick,
+      plan: base.title,
+      months: base.forever ? null : (base.months || 1),
+      forever: !!base.forever,
+      amount: price,
+      promo: promoCode,
+      status: "checking",
+      created_at: Date.now()
+    });
+    if (!order) return toast("Ошибка при создании заявки (база недоступна?)");
 
-    if (base.forever) {
-      if (isActive(cur) && cur.sub_forever) { $("buyOverlay").hidden = true; pending = null; return toast("У тебя уже есть бессрочная подписка"); }
+    $("buyOverlay").hidden = true;
+    pending = null; appliedPromo = null;
+    await renderProfile();
+    toast("Заявка отправлена! Ожидай подтверждение админа");
+  });
+
+  async function renderOrders() {
+    const orders = await sbGet("orders");
+    const o = $("adminOrders");
+    if (DB_ERR) { o.innerHTML = "<div class='db-err'>⚠ Ошибка базы данных: " + DB_ERR + "</div>"; return; }
+    if (!orders.length) { o.innerHTML = "<p class='muted'>Заявок пока нет</p>"; return; }
+    orders.sort((a, b) => b.id - a.id);
+    o.innerHTML = "<table class='admin-table'><thead><tr><th>Дата</th><th>Ник</th><th>Тариф</th><th>Сумма</th><th>Промо</th><th>Статус</th><th></th></tr></thead><tbody>"
+      + orders.map((x) => {
+        const stTxt = x.status === "checking" ? "⏳ проверка" : (x.status === "confirmed" ? "✅ оплачен" : "❌ отклонён");
+        const act = x.status === "checking"
+          ? "<button class='mini ok' data-confirm='" + x.id + "'>Подтвердить</button> <button class='mini' data-reject='" + x.id + "'>Отклонить</button>"
+          : "";
+        return "<tr class='stat " + x.status + "'><td>" + fmtDateTime(x.created_at) + "</td><td>" + x.nick + "</td><td>" + x.plan + "</td><td>" + x.amount + " ₽</td><td>" + (x.promo || "—") + "</td><td>" + stTxt + "</td><td>" + act + "</td></tr>";
+      }).join("")
+      + "</tbody></table>";
+
+    $$("#adminOrders [data-confirm]").forEach((b) => {
+      b.addEventListener("click", () => confirmOrder(+b.dataset.confirm));
+    });
+    $$("#adminOrders [data-reject]").forEach((b) => {
+      b.addEventListener("click", () => setOrderStatus(+b.dataset.reject, "rejected"));
+    });
+  }
+
+  async function confirmOrder(id) {
+    const o = (await sbGetWhere("orders", { id }))[0];
+    if (!o || o.status !== "checking") return toast("Заявка не найдена или уже обработана");
+    const u = (await sbGetWhere("accounts", { nick: o.nick }))[0];
+    if (!u) return toast("Аккаунт " + o.nick + " не найден — сначала зарегистрируй его");
+
+    const now = Date.now();
+    let sub_from = u.sub_from || now;
+    let sub_to = u.sub_to || now;
+    let sub_forever = !!u.sub_forever;
+
+    if (o.forever) {
       sub_forever = true;
     } else {
-      if (isActive(cur) && cur.sub_forever) { $("buyOverlay").hidden = true; pending = null; return toast("Бессрочная подписка — тариф не нужен"); }
-      if (isActive(cur) && cur.sub_to) {
-        sub_from = cur.sub_from || now;
-        sub_to = addMonths(cur.sub_to, base.months);
-      } else {
-        sub_from = now;
-        sub_to = addMonths(now, base.months);
-      }
+      if (sub_forever) return toast("Бессрочная подписка уже активна — тариф не нужен");
+      if (isActive(u) && u.sub_to) { sub_to = addMonths(u.sub_to, o.months || 1); }
+      else { sub_from = now; sub_to = addMonths(now, o.months || 1); }
+      sub_forever = false;
     }
 
-    await sbUpdate("accounts", { id: cur.id }, { sub_from, sub_to, sub_forever });
-    cur.sub_from = sub_from; cur.sub_to = sub_to; cur.sub_forever = sub_forever;
+    await sbUpdate("accounts", { id: u.id }, { sub_from, sub_to, sub_forever });
+    await sbUpdate("orders", { id: o.id }, { status: "confirmed", confirmed_at: now });
+    if (cur && cur.id === u.id) { cur.sub_from = sub_from; cur.sub_to = sub_to; cur.sub_forever = sub_forever; }
+    await renderOrders(); await renderAdminTables(); await renderProfile();
+    toast("Оплата подтверждена — у " + o.nick + " активна подписка");
+  }
 
-    $("buyOverlay").hidden = true; pending = null; appliedPromo = null;
-    renderProfile();
-    toast("Оплата принята — подписка оформлена");
+  async function setOrderStatus(id, st) {
+    const o = (await sbGetWhere("orders", { id }))[0];
+    if (st === "rejected" && o && o.promo) {
+      const p = (await sbGetWhere("app_promos", { code: o.promo }))[0];
+      if (p) await sbUpdate("app_promos", { id: p.id }, { uses_left: p.uses_left + 1 });
+    }
+    await sbUpdate("orders", { id }, { status: st, confirmed_at: Date.now() });
+    await renderOrders();
+    toast(st === "rejected" ? "Заявка отклонена" : "Заявка подтверждена");
+  }
+
+  async function renderSettings() {
+    const s = await getSetting();
+    $("sbpQrUrl").value = (s && s.sbp_qr_url) || "";
+    $("sbpReq").value = (s && s.sbp_req) || "";
+    if (DB_ERR) toast("База недоступна — настройки не загружены");
+  }
+
+  $("saveSettingsBtn").addEventListener("click", async () => {
+    const qr = $("sbpQrUrl").value.trim();
+    const req = $("sbpReq").value.trim();
+    const exists = await sbGetWhere("settings", { id: 1 });
+    if (exists.length) await sbUpdate("settings", { id: 1 }, { sbp_qr_url: qr, sbp_req: req });
+    else await sbInsert("settings", { id: 1, sbp_qr_url: qr, sbp_req: req });
+    toast("Настройки сохранены");
   });
 
   $$("[data-buy]").forEach((btn) => {
@@ -498,16 +599,20 @@
     t.addEventListener("click", () => {
       $$("#adminTabs .tab").forEach((x) => x.classList.toggle("active", x === t));
       $("adminUsers").hidden = t.dataset.amt !== "users";
+      $("adminOrders").hidden = t.dataset.amt !== "orders";
       $("adminKeys").hidden = t.dataset.amt !== "keys";
       $("adminPromos").hidden = t.dataset.amt !== "promos";
+      $("adminSettings").hidden = t.dataset.amt !== "settings";
       if (t.dataset.amt === "users") renderAdminTables();
+      if (t.dataset.amt === "orders") renderOrders();
       if (t.dataset.amt === "keys") renderKeys();
       if (t.dataset.amt === "promos") renderPromos();
+      if (t.dataset.amt === "settings") renderSettings();
     });
   });
 
   $("adminRefresh").addEventListener("click", async () => {
-    await Promise.all([renderAdminTables(), renderKeys(), renderPromos()]);
+    await Promise.all([renderAdminTables(), renderOrders(), renderKeys(), renderPromos(), renderSettings()]);
     toast("Списки обновлены");
   });
 
