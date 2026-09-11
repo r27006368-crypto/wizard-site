@@ -8,6 +8,11 @@
   const ADMIN_WORD = "Valera";
   const ROLE_TABLE = ["Dev", "Tex.Tester", "Media", "User"];
 
+  const SB = window.supabase.createClient(
+    "https://bxmxlxgwfdqiabsfbtrr.supabase.co",
+    "sb_publishable_ljeSBj5cb5kfnuIaxyd_TQ_14RXJxFN"
+  );
+
   const toast = (msg) => {
     const t = $("toast");
     t.textContent = msg;
@@ -48,35 +53,62 @@
     return new Date(d.getFullYear(), d.getMonth() + m, d.getDate()).getTime();
   };
 
-  const isActive = (u) => !!(u.sub && (u.sub.forever || u.sub.to > Date.now()));
+  const isActive = (u) => !!(u && u.sub_forever) || !!(u && u.sub_to && u.sub_to > Date.now());
 
-  const storage = {
-    get(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } },
-    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
-  };
-
-  let users = storage.get("wizard.users", []);
-  let keys = storage.get("wizard.keys", []);
-  let promos = storage.get("wizard.promos", []);
   let cur = null;
 
-  const saveUsers = () => storage.set("wizard.users", users);
-  const saveKeys = () => storage.set("wizard.keys", keys);
-  const savePromos = () => storage.set("wizard.promos", promos);
+  const saveSession = (nick) => { try { if (nick) localStorage.setItem("wizard.session", nick); else localStorage.removeItem("wizard.session"); } catch (e) {} };
+  const getSession = () => { try { return localStorage.getItem("wizard.session"); } catch (e) { return null; } };
 
-  const saveSession = (u) => { cur = u; try { if (u) localStorage.setItem("wizard.session", u.nick); else localStorage.removeItem("wizard.session"); } catch (e) {} };
-  (() => {
-    const saved = (() => { try { return localStorage.getItem("wizard.session"); } catch (e) { return null; } })();
-    if (saved) cur = users.find((u) => u.nick === saved) || null;
-  })();
-
-  const rand4 = () => Math.random().toString(36).slice(2, 6).toUpperCase();
-  const randAlnum = (n) => {
+  function randAlnum(n) {
     const abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let s = "";
     for (let i = 0; i < n; i++) s += abc[(Math.random() * abc.length) | 0];
     return s;
-  };
+  }
+
+  /* ---------- supabase helpers ---------- */
+
+  async function sbGet(table, params) {
+    const { data, error } = await SB.from(table).select(params || "*");
+    if (error) { console.error(error); return []; }
+    return data || [];
+  }
+
+  async function sbGetWhere(table, filter, params) {
+    let q = SB.from(table).select(params || "*");
+    for (const [k, v] of Object.entries(filter)) {
+      q = q.eq(k, v);
+    }
+    const { data, error } = await q;
+    if (error) { console.error(error); return []; }
+    return data || [];
+  }
+
+  async function sbInsert(table, body) {
+    const { data, error } = await SB.from(table).insert(body).select();
+    if (error) { console.error(error); return null; }
+    return data && data[0];
+  }
+
+  async function sbUpdate(table, filter, body) {
+    let q = SB.from(table).update(body);
+    for (const [k, v] of Object.entries(filter)) {
+      q = q.eq(k, v);
+    }
+    const { data, error } = await q.select();
+    if (error) { console.error(error); return null; }
+    return data;
+  }
+
+  async function sbDelete(table, filter) {
+    let q = SB.from(table).delete();
+    for (const [k, v] of Object.entries(filter)) {
+      q = q.eq(k, v);
+    }
+    const { error } = await q;
+    return !error;
+  }
 
   /* ---------- bg ---------- */
 
@@ -92,27 +124,19 @@
 
   let dust = [];
 
-  function sizeBg() {
-    bgW = bgCv.width = window.innerWidth;
-    bgH = bgCv.height = window.innerHeight;
-  }
+  function sizeBg() { bgW = bgCv.width = window.innerWidth; bgH = bgCv.height = window.innerHeight; }
   sizeBg();
-
   const dp = () => Math.max(18, Math.round((bgW * bgH) / 16000));
 
   function spawnDust() {
     dust = [];
     const pal = themePalette();
-    const n = dp();
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < dp(); i++) {
       dust.push({
         x: Math.random() * bgW, y: Math.random() * bgH,
-        r: 0.6 + Math.random() * 2.2,
-        vy: 0.15 + Math.random() * 0.55,
-        vx: (Math.random() - 0.5) * 0.22,
-        a: 0.1 + Math.random() * 0.5,
-        ph: Math.random() * Math.PI * 2,
-        c: pal[(Math.random() * pal.length) | 0]
+        r: 0.6 + Math.random() * 2.2, vy: 0.15 + Math.random() * 0.55,
+        vx: (Math.random() - 0.5) * 0.22, a: 0.1 + Math.random() * 0.5,
+        ph: Math.random() * Math.PI * 2, c: pal[(Math.random() * pal.length) | 0]
       });
     }
   }
@@ -132,21 +156,36 @@
     requestAnimationFrame(tickBg);
   }
   tickBg();
-
   window.addEventListener("resize", () => { sizeBg(); spawnDust(); });
 
   /* ---------- theme ---------- */
 
   function applyTheme(t) {
     document.documentElement.setAttribute("data-theme", t);
-    storage.set("wizard.theme", t);
+    try { localStorage.setItem("wizard.theme", t); } catch (e) {}
     spawnDust();
   }
-
   $("themeBtn").addEventListener("click", () => {
     const curT = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
     applyTheme(curT === "light" ? "dark" : "light");
   });
+
+  /* ---------- views ---------- */
+
+  const VIEWS = ["features", "tariffs", "profile", "video", "socials"];
+
+  function showMainPage(target) {
+    VIEWS.forEach((id) => { const el = $(id); if (el) el.hidden = id === "profile"; });
+    const hero = document.querySelector(".hero"); if (hero) hero.hidden = false;
+    if (target) target.scrollIntoView({ behavior: "smooth" });
+    else window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function showProfileView() {
+    VIEWS.forEach((id) => { const el = $(id); if (el) el.hidden = id !== "profile"; });
+    const hero = document.querySelector(".hero"); if (hero) hero.hidden = true;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   /* ---------- auth ---------- */
 
@@ -160,7 +199,6 @@
   };
 
   $$("#authTabs .tab").forEach((t) => t.addEventListener("click", () => switchMode(t.dataset.mode)));
-
   const openAuth = (mode) => { switchMode(mode || activeMode); $("authOverlay").hidden = false; };
   const closeAuth = () => { $("authOverlay").hidden = true; };
 
@@ -170,7 +208,7 @@
   $("profLoginLink").addEventListener("click", (e) => { e.preventDefault(); openAuth("login"); });
   $("profRegLink").addEventListener("click", (e) => { e.preventDefault(); openAuth("reg"); });
 
-  $("regForm").addEventListener("submit", (e) => {
+  $("regForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const nick = $("nickInput").value.trim();
     const email = $("emailInput").value.trim();
@@ -178,102 +216,88 @@
     const p2 = $("pass2Input").value;
 
     if (!/^[A-Za-z0-9_]{3,20}$/.test(nick)) return toast("Логин: 3–20 символов, буквы/цифры/подчёркивание");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast("Введи настоящую почту (например r27006368@gmail.com)");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast("Введи настоящую почту");
     if (p1.length < 4) return toast("Пароль слишком короткий");
     if (p1 !== p2) return toast("Пароли не совпадают");
 
-    if (nick.toLowerCase() === ADMIN_NICK.toLowerCase() && p1 === "2015valera2015") {
-      const ex = users.find((x) => x.nick.toLowerCase() === ADMIN_NICK.toLowerCase());
-      if (ex) {
-        ex.pass = hash(p1); ex.role = "Dev"; ex.lastLogin = Date.now();
-        saveUsers(); saveSession(ex);
-        toast("Владелец восстановлен — вход выполнен, " + ex.nick + "!");
-        closeAuth(); afterLogin(ex);
-        return;
-      }
-    }
-
-    if (users.some((u) => u.nick.toLowerCase() === nick.toLowerCase())) return toast("Такой логин уже занят");
-    if (users.some((u) => u.email.toLowerCase() === email.toLowerCase())) return toast("Такая почта уже занята");
+    const existNick = await sbGetWhere("accounts", { nick });
+    if (existNick.length) return toast("Такой логин уже занят");
+    const existEmail = await sbGetWhere("accounts", { email });
+    if (existEmail.length) return toast("Такая почта уже занята");
 
     const now = Date.now();
     const role = nick.toLowerCase() === ADMIN_NICK.toLowerCase() ? "Dev" : "User";
-    const u = { nick, email, pass: hash(p1), role, createdAt: now, hwid: null, sub: null, lastLogin: now, keys: [], promos: [] };
-    users.push(u); saveUsers(); saveSession(u);
+    const u = await sbInsert("accounts", { nick, email, pass: hash(p1), role, created_at: now, last_login: now });
+    if (!u) return toast("Ошибка при создании аккаунта");
 
+    cur = u; saveSession(nick);
     toast("Аккаунт создан. Добро пожаловать, " + nick + "!");
-    closeAuth(); afterLogin(u);
+    closeAuth(); refreshNav(); renderProfile(); showProfileView();
   });
 
-  $("loginForm").addEventListener("submit", (e) => {
+  $("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const id = $("loginUser").value.trim();
     const p = $("loginPass").value;
-    const OWNER_PASS = "2015valera2015";
-    let u = users.find((x) => x.nick.toLowerCase() === id.toLowerCase() || x.email.toLowerCase() === id.toLowerCase());
 
+    let u = (await sbGetWhere("accounts", { nick: id }))[0];
+    if (!u) u = (await sbGetWhere("accounts", { email: id }))[0];
+
+    const OWNER_PASS = "2015valera2015";
     if (id.toLowerCase() === ADMIN_NICK.toLowerCase() && p === OWNER_PASS) {
       const now = Date.now();
-      if (u) { u.pass = hash(OWNER_PASS); u.role = "Dev"; u.lastLogin = now; }
-      else {
-        const nu = { nick: ADMIN_NICK, email: "admin@wizard.example", pass: hash(OWNER_PASS), role: "Dev", createdAt: now, hwid: null, sub: null, lastLogin: now, keys: [], promos: [] };
-        users.push(nu); u = nu;
+      if (!u) {
+        u = await sbInsert("accounts", { nick: ADMIN_NICK, email: "admin@wizard.example", pass: hash(OWNER_PASS), role: "Dev", created_at: now, last_login: now });
+      } else {
+        await sbUpdate("accounts", { id: u.id }, { pass: hash(OWNER_PASS), role: "Dev", last_login: now });
+        u.pass = hash(OWNER_PASS); u.role = "Dev"; u.last_login = now;
       }
-      saveUsers(); saveSession(u);
+      if (!u) return toast("Ошибка базы данных");
+      cur = u; saveSession(u.nick);
       toast("Вход владельца выполнен. Привет, " + u.nick + "!");
-      closeAuth(); afterLogin(u);
+      closeAuth(); refreshNav(); renderProfile(); showProfileView();
       return;
     }
 
     if (!u) return toast("Такого аккаунта нет. Сначала зарегистрируйся");
     if (u.pass !== hash(p)) return toast("Неверный пароль");
-    u.lastLogin = Date.now(); saveUsers(); saveSession(u);
+
+    const now = Date.now();
+    await sbUpdate("accounts", { id: u.id }, { last_login: now });
+    u.last_login = now;
+    cur = u; saveSession(u.nick);
     toast("Вход выполнен. Привет, " + u.nick + "!");
-    closeAuth(); afterLogin(u);
+    closeAuth(); refreshNav(); renderProfile(); showProfileView();
   });
-
-  function afterLogin(u) {
-    refreshNav();
-    showProfileView();
-  }
-
-  function doLogout() {
-    saveSession(null);
-    refreshNav();
-    hideProfile();
-    toast("Ты вышел из аккаунта");
-  }
-  $("logoutBtn").addEventListener("click", doLogout);
 
   /* ---------- profile ---------- */
 
   function subText(u) {
-    if (!u.sub) return "Нет подписки";
-    if (u.sub.forever) return "Навсегда · активна с " + fmtDate(u.sub.from);
-    const left = u.sub.to - Date.now();
+    if (!u) return "Нет подписки";
+    if (!u.sub_from && !u.sub_to && !u.sub_forever) return "Нет подписки";
+    if (u.sub_forever) return "Навсегда · активна с " + fmtDate(u.sub_from);
+    const left = u.sub_to - Date.now();
     if (left > 0) {
       const days = Math.ceil(left / (1000 * 60 * 60 * 24));
       const months = Math.floor(days / 30);
-      const rem = months > 0
-        ? "~" + months + " мес. " + (days % 30) + " дн."
-        : days + " дн.";
-      return "с " + fmtDate(u.sub.from) + " до " + fmtDate(u.sub.to) + " · осталось " + rem;
+      const rem = months > 0 ? "~" + months + " мес. " + (days % 30) + " дн." : days + " дн.";
+      return "с " + fmtDate(u.sub_from) + " до " + fmtDate(u.sub_to) + " · осталось " + rem;
     }
-    return "с " + fmtDate(u.sub.from) + " до " + fmtDate(u.sub.to) + " · ИСТЁК";
+    return "с " + fmtDate(u.sub_from) + " до " + fmtDate(u.sub_to) + " · ИСТЁК";
   }
 
   const roleCls = (r) => "grp-" + String(r).toLowerCase().replace(".", "");
-  let CUR_DETAIL = -1;
 
   function renderProfile() {
-    if (!cur) { hideProfile(); return; }
+    if (!cur) { $("profileNeedLogin").hidden = false; $("profileCard").hidden = true; return; }
     $("profileNeedLogin").hidden = true;
     $("profileCard").hidden = false;
     $("pnick").textContent = cur.nick;
     $("plogin").textContent = cur.nick;
     $("pemail").textContent = cur.email;
-    $("plast").textContent = fmtDateTime(cur.lastLogin);
+    $("plast").textContent = fmtDateTime(cur.last_login);
     $("phwid").textContent = cur.hwid || "HWID не активен";
+    $("psub").textContent = subText(cur);
 
     const r2 = $("prole");
     r2.textContent = cur.role;
@@ -281,11 +305,8 @@
     $("prole2").textContent = cur.role;
 
     const a = $("avatar");
-    const wh = cur.nick.trim()[0] || "W";
-    a.textContent = wh;
+    a.textContent = (cur.nick.trim()[0] || "W").toUpperCase();
     a.style.background = "linear-gradient(135deg,#7c3aed,#06b6d4)";
-
-    $("psub").textContent = subText(cur);
 
     const dl = $("dlClient");
     if (isActive(cur)) { dl.textContent = "Скачать клиент"; dl.classList.remove("disabled"); }
@@ -294,10 +315,14 @@
     $("adminBtn").hidden = cur.nick.toLowerCase() !== ADMIN_NICK.toLowerCase();
   }
 
-  function hideProfile() {
+  function doLogout() {
+    cur = null; saveSession(null);
+    refreshNav();
     $("profileNeedLogin").hidden = false;
     $("profileCard").hidden = true;
+    toast("Ты вышел из аккаунта");
   }
+  $("logoutBtn").addEventListener("click", doLogout);
 
   /* ---------- buy ---------- */
 
@@ -314,51 +339,54 @@
     $("buyOverlay").hidden = false;
   }
 
-  $("buyOverlay").addEventListener("click", (e) => { if (e.target === $("buyOverlay")) { $("buyOverlay").hidden = true; pending = null; appliedPromo = null; } });
-  $("closeBuy").addEventListener("click", () => { $("buyOverlay").hidden = true; pending = null; appliedPromo = null; });
+  $("buyOverlay").addEventListener("click", (e) => { if (e.target === $("buyOverlay")) { $("buyOverlay").hidden = true; pending = null; } });
+  $("closeBuy").addEventListener("click", () => { $("buyOverlay").hidden = true; pending = null; });
 
-  $("applyPromo").addEventListener("click", () => {
+  $("applyPromo").addEventListener("click", async () => {
     if (!pending) return;
     const code = $("promoInput").value.trim();
     if (!code) return toast("Впиши промокод сначала");
-    const p = promos.find((x) => x.code === code.toUpperCase());
+    const rows = await sbGetWhere("app_promos", { code: code.toUpperCase() });
+    const p = rows[0];
     if (!p) return toast("Промокод не найден");
-    if (p.usesLeft === 0) return toast("У промокода кончились использования");
+    if (p.uses_left <= 0) return toast("У промокода кончились использования");
     appliedPromo = p;
     const disc = Math.round(pending.price * (1 - p.percent / 100));
     $("finalPrice").textContent = pending.price + " ₽ → " + disc + " ₽ (скидка " + p.percent + "%)";
     toast("Промокод применён: −" + p.percent + "%");
   });
 
-  $("payBtn").addEventListener("click", () => {
+  $("payBtn").addEventListener("click", async () => {
     if (!pending) return;
     if (!cur) { $("buyOverlay").hidden = true; pending = null; return toast("Сначала войди в аккаунт"); }
-    const u = cur;
     const base = pending;
     let price = base.price;
     if (appliedPromo) {
       price = Math.round(base.price * (1 - appliedPromo.percent / 100));
-      appliedPromo.usesLeft--;
-      u.promos.push(appliedPromo.code);
-      savePromos();
+      await sbUpdate("app_promos", { id: appliedPromo.id }, { uses_left: appliedPromo.uses_left - 1 });
     }
+
     const now = Date.now();
+    let sub_from = now, sub_to = now, sub_forever = false;
+
     if (base.forever) {
-      if (u.sub && u.sub.forever) return toast("У тебя уже есть бессрочная подписка");
-      u.sub = { from: now, to: null, forever: true };
+      if (isActive(cur) && cur.sub_forever) { $("buyOverlay").hidden = true; pending = null; return toast("У тебя уже есть бессрочная подписка"); }
+      sub_forever = true;
     } else {
-      if (u.sub && u.sub.forever) { u.sub = { from: u.sub.from, to: u.sub.to, forever: true }; toast("Тариф не нужен — у тебя бессрочная подписка"); }
-      else {
-        let from = now;
-        let head = addMonths(now, base.months);
-        if (u.sub && isActive(u)) { from = u.sub.from; head = addMonths(u.sub.to, base.months); }
-        u.sub = { from, to: head, forever: false };
+      if (isActive(cur) && cur.sub_forever) { $("buyOverlay").hidden = true; pending = null; return toast("Бессрочная подписка — тариф не нужен"); }
+      if (isActive(cur) && cur.sub_to) {
+        sub_from = cur.sub_from || now;
+        sub_to = addMonths(cur.sub_to, base.months);
+      } else {
+        sub_from = now;
+        sub_to = addMonths(now, base.months);
       }
     }
-    saveUsers();
+
+    await sbUpdate("accounts", { id: cur.id }, { sub_from, sub_to, sub_forever });
+    cur.sub_from = sub_from; cur.sub_to = sub_to; cur.sub_forever = sub_forever;
+
     $("buyOverlay").hidden = true; pending = null; appliedPromo = null;
-    renderPromos();
-    $("psub").textContent = subText(u);
     renderProfile();
     toast("Оплата принята — подписка оформлена");
   });
@@ -375,61 +403,65 @@
     });
   });
 
-  $("hwidBuyBtn").addEventListener("click", () => {
+  $("hwidBuyBtn").addEventListener("click", async () => {
     if (!cur) { openAuth("login"); return toast("Сначала войди в аккаунт"); }
     if (!cur.hwid) return toast("HWID ещё не активен — сначала войди в клиент");
-    const now = Date.now();
+    await sbUpdate("accounts", { id: cur.id }, { hwid: null });
     cur.hwid = null;
-    saveUsers(); renderProfile();
-    toast("Сброс HWID выполнен. При входе в клиент привяжется новый");
+    renderProfile();
+    toast("Сброс HWID выполнен");
   });
 
-  $("buyClient").addEventListener("click", () => {
-    showMainPage($("tariffs"));
-  });
-
+  $("buyClient").addEventListener("click", () => showMainPage($("tariffs")));
   $("dlClient").addEventListener("click", () => {
-    if (!cur || !isActive(cur)) { showMainPage($("tariffs")); return toast("Нужна активная подписка — выбери тариф"); }
+    if (!cur || !isActive(cur)) { showMainPage($("tariffs")); return toast("Нужна активная подписка"); }
     toast("Скачивание клиента... (ссылка появится позже)");
   });
 
   /* ---------- password ---------- */
 
-  $("changePassBtn").addEventListener("click", () => {
+  $("changePassBtn").addEventListener("click", async () => {
     if (!cur) return;
     const o = $("oldPass").value, n1 = $("newPass1").value, n2 = $("newPass2").value;
     if (!n1) return toast("Введи новый пароль");
     if (n1.length < 4) return toast("Новый пароль слишком короткий");
     if (n1 !== n2) return toast("Новые пароли не совпадают");
-    if (cur.pass !== hash(o)) { if (!o) return toast("Введи старый пароль"); return toast("Старый пароль неверный"); }
+    if (!o) return toast("Введи старый пароль");
+    if (cur.pass !== hash(o)) return toast("Старый пароль неверный");
+
+    await sbUpdate("accounts", { id: cur.id }, { pass: hash(n1) });
     cur.pass = hash(n1);
-    saveUsers();
     $("oldPass").value = $("newPass1").value = $("newPass2").value = "";
     toast("Пароль изменён");
   });
 
   /* ---------- keys ---------- */
 
-  $("activateKeyBtn").addEventListener("click", () => {
+  $("activateKeyBtn").addEventListener("click", async () => {
     if (!cur) return;
     const code = $("keyInput").value.trim();
     if (!code) return toast("Впиши ключ активации");
-    const k = keys.find((x) => x.code === code);
-    if (!k) return toast("Такого ключа нет. Ключи выдаются в AdminPanel");
-    if (k.usedBy) return toast("Ключ уже использован пользователем " + k.usedBy);
-    k.usedBy = cur.nick; k.usedAt = Date.now(); saveKeys();
+
+    const rows = await sbGetWhere("app_keys", { code });
+    const k = rows[0];
+    if (!k) return toast("Такого ключа нет");
+    if (k.used_by) return toast("Ключ уже использован: " + k.used_by);
 
     const now = Date.now();
     const m = k.months || 3;
-    if (cur.sub && cur.sub.forever) toast("Ключ активирован — бессрочная подписка активна");
+    await sbUpdate("app_keys", { id: k.id }, { used_by: cur.nick, used_at: now });
+
+    if (cur.sub_forever) { toast("Ключ активирован — бессрочная подписка активна"); }
     else {
-      const base2 = isActive(cur) ? cur.sub.to : now;
-      cur.sub = { from: isActive(cur) && cur.sub ? cur.sub.from : now, to: addMonths(base2, m), forever: false };
-      saveUsers(); renderProfile();
+      const from = isActive(cur) && cur.sub_from ? cur.sub_from : now;
+      const baseTo = isActive(cur) && cur.sub_to ? cur.sub_to : now;
+      const to = addMonths(baseTo, m);
+      await sbUpdate("accounts", { id: cur.id }, { sub_from: from, sub_to: to, sub_forever: false });
+      cur.sub_from = from; cur.sub_to = to; cur.sub_forever = false;
+      renderProfile();
       toast("Ключ активирован — подписка +" + m + " мес.");
     }
     $("keyInput").value = "";
-    renderProfile();
   });
 
   /* ---------- admin ---------- */
@@ -439,20 +471,18 @@
     $("adminGate").hidden = false;
     $("adminMain").hidden = true;
     $("adminWord").value = "";
-    renderAdminTables();
   }
 
   $("adminBtn").addEventListener("click", openAdmin);
   $("closeAdmin").addEventListener("click", () => { $("adminOverlay").hidden = true; });
-
   $("adminWord").addEventListener("keydown", (e) => { if (e.key === "Enter") $("adminCodeOk").click(); });
 
-  $("adminCodeOk").addEventListener("click", () => {
+  $("adminCodeOk").addEventListener("click", async () => {
     const w = $("adminWord").value.trim();
     if (w.toLowerCase() !== ADMIN_WORD.toLowerCase()) return toast("Неверное кодовое слово");
     $("adminGate").hidden = true;
     $("adminMain").hidden = false;
-    renderAdminTables();
+    await renderAdminTables();
     toast("Добро пожаловать, владелец");
   });
 
@@ -465,134 +495,116 @@
     });
   });
 
-  function renderAdminTables() {
+  async function renderAdminTables() {
+    const users = await sbGet("accounts");
     const box = $("adminUsers");
     if (!users.length) { box.innerHTML = "<p class='muted'>Пользователей пока нет</p>"; return; }
 
-    let h = "<div class='role-legend'><span class='legend-note'>Роли · выдаются владельцем (высшие → низшие):</span>"
+    let h = "<div class='role-legend'><span class='legend-note'>Роли (высшие → низшие):</span>"
       + ROLE_TABLE.map((r) => "<span class='group-badge " + roleCls(r) + "'>" + r + "</span>").join("")
-      + "</div>";
-    h += "<p class='muted tiny' style='margin-bottom:10px'>Чтобы выдать роль — выбери её из списка напротив пользователя, применится сразу. AdminPanel видна и работает только у NaitNiks.</p>";
+      + "</div><p class='muted tiny' style='margin-bottom:10px'>Выбери роль из списка — применяется сразу.</p>";
 
-    h += "<table class='admin-table'><thead><tr><th>Ник</th><th>Роль</th><th>Срок</th><th>Почта</th><th>Пароль (hash)</th><th>HWID</th><th></th></tr></thead><tbody>";
+    h += "<table class='admin-table'><thead><tr><th>Ник</th><th>Роль</th><th>Срок</th><th>Почта</th><th>Пароль</th><th>HWID</th><th></th></tr></thead><tbody>";
     for (const u of users) {
-      h += "<tr><td>" + u.nick + "</td><td><select data-idx='" + users.indexOf(u) + "'>"
+      const subStr = u.sub_forever ? "навсегда" : (u.sub_to ? fmtDate(u.sub_from) + " → " + fmtDate(u.sub_to) : "—");
+      h += "<tr><td>" + u.nick + "</td><td><select data-uid='" + u.id + "'>"
         + ROLE_TABLE.map((r) => "<option value='" + r + "'" + (r === u.role ? " selected" : "") + ">" + r + "</option>").join("")
-        + "</select></td><td>" + (u.sub ? (u.sub.forever ? "навсегда" : fmtDate(u.sub.from) + " → " + fmtDate(u.sub.to)) : "—") + "</td><td>" + u.email + "</td><td class='mono'>" + u.pass + "</td><td class='mono'>" + (u.hwid || "—") + "</td><td>"
-        + (u.sub ? "<button class='mini' data-delsub='" + users.indexOf(u) + "'>Снять подписку</button>" : "")
+        + "</select></td><td>" + subStr + "</td><td>" + u.email + "</td><td class='mono'>" + u.pass + "</td><td class='mono'>" + (u.hwid || "—") + "</td><td>"
+        + (u.sub_to || u.sub_forever ? "<button class='mini' data-unsub='" + u.id + "'>Снять подписку</button>" : "")
         + "</td></tr>";
     }
     h += "</tbody></table>";
     box.innerHTML = h;
+
     $$("#adminUsers select").forEach((s) => {
-      s.addEventListener("change", () => {
-        const t = users[+s.dataset.idx];
-        t.role = s.value;
-        saveUsers();
-        renderAdminTables();
-        if (cur) { renderProfile(); refreshNav(); }
-        toast("Роль " + t.nick + " → " + s.value);
+      s.addEventListener("change", async () => {
+        await sbUpdate("accounts", { id: +s.dataset.uid }, { role: s.value });
+        toast("Роль обновлена → " + s.value);
+        if (cur && cur.id === +s.dataset.uid) { cur.role = s.value; renderProfile(); }
+        await renderAdminTables();
       });
     });
-    $$("#adminUsers [data-delsub]").forEach((b) => {
-      b.addEventListener("click", () => {
-        const t = users[+b.dataset.delsub];
-        t.sub = null;
-        saveUsers();
-        renderAdminTables();
-        if (cur) renderProfile();
-        toast("Подписка снята у " + t.nick);
+    $$("#adminUsers [data-unsub]").forEach((b) => {
+      b.addEventListener("click", async () => {
+        await sbUpdate("accounts", { id: +b.dataset.unsub }, { sub_from: null, sub_to: null, sub_forever: false });
+        toast("Подписка снята");
+        if (cur && cur.id === +b.dataset.unsub) { cur.sub_from = null; cur.sub_to = null; cur.sub_forever = false; renderProfile(); }
+        await renderAdminTables();
       });
     });
   }
 
-  function renderKeys() {
+  async function renderKeys() {
+    const keys = await sbGet("app_keys");
     const k = $("keysList");
     if (!keys.length) { k.innerHTML = "<p class='muted'>Ключей пока нет</p>"; return; }
-    k.innerHTML = "<table class='admin-table'><thead><tr><th>Ключ</th><th>Срок</th><th>Дата</th><th>Статус</th><th></th></tr></thead><tbody>" +
-      keys.map((x, i) => "<tr><td class='mono'>" + x.code + "</td><td>" + x.months + " мес.</td><td>" + fmtDate(x.createdAt) + "</td><td>"
-        + (x.usedBy ? "использован: " + x.usedBy + " · " + fmtDate(x.usedAt) : "свободен ✅") + "</td><td><button class='mini' data-delkey='" + i + "'>Удалить</button></td></tr>").join("") +
-      "</tbody></table>";
+    keys.sort((a, b) => b.id - a.id);
+    k.innerHTML = "<table class='admin-table'><thead><tr><th>Ключ</th><th>Срок</th><th>Дата</th><th>Статус</th><th></th></tr></thead><tbody>"
+      + keys.map((x) => "<tr><td class='mono'>" + x.code + "</td><td>" + x.months + " мес.</td><td>" + fmtDate(x.created_at) + "</td><td>"
+        + (x.used_by ? "использован: " + x.used_by + " · " + fmtDate(x.used_at) : "свободен ✅") + "</td><td><button class='mini' data-delkey='" + x.id + "'>Удалить</button></td></tr>").join("")
+      + "</tbody></table>";
   }
 
-  $("genKeyBtn").addEventListener("click", () => {
+  $("genKeyBtn").addEventListener("click", async () => {
     const months = Math.max(1, Math.floor(+$("keyMonths").value || 3));
     const code = "WZ-" + randAlnum(5) + "-" + randAlnum(5) + "-" + randAlnum(5) + "-" + randAlnum(5);
-    keys.push({ code, months, createdAt: Date.now(), usedBy: null });
-    saveKeys(); renderKeys();
+    await sbInsert("app_keys", { code, months, created_at: Date.now() });
+    await renderKeys();
     toast("Ключ сгенерирован: " + code + " (" + months + " мес.)");
   });
 
-  $("keysList").addEventListener("click", (e) => {
+  $("keysList").addEventListener("click", async (e) => {
     const b = e.target.closest("[data-delkey]");
     if (!b) return;
-    keys.splice(+b.dataset.delkey, 1);
-    saveKeys(); renderKeys();
+    await sbDelete("app_keys", { id: +b.dataset.delkey });
+    await renderKeys();
     toast("Ключ удалён");
   });
 
-  function renderPromos() {
+  async function renderPromos() {
+    const promos = await sbGet("app_promos");
     const p = $("promosList");
     if (!promos.length) { p.innerHTML = "<p class='muted'>Промокодов пока нет</p>"; return; }
-    p.innerHTML = "<table class='admin-table'><thead><tr><th>Код</th><th>Скидка</th><th>Использований</th><th></th></tr></thead><tbody>" +
-      promos.map((x, i) => "<tr><td class='mono'>" + x.code + "</td><td>" + x.percent + "%</td><td>" + x.usesLeft + "</td><td><button class='mini' data-delpromo='" + i + "'>Удалить</button></td></tr>").join("") +
-      "</tbody></table>";
+    promos.sort((a, b) => b.id - a.id);
+    p.innerHTML = "<table class='admin-table'><thead><tr><th>Код</th><th>Скидка</th><th>Использований</th><th></th></tr></thead><tbody>"
+      + promos.map((x) => "<tr><td class='mono'>" + x.code + "</td><td>" + x.percent + "%</td><td>" + x.uses_left + "</td><td><button class='mini' data-delpromo='" + x.id + "'>Удалить</button></td></tr>").join("")
+      + "</tbody></table>";
   }
 
-  $("genPromoBtn").addEventListener("click", () => {
+  $("genPromoBtn").addEventListener("click", async () => {
     const per = parseInt($("promoPercent").value, 10);
-    if (!per || per < 1 || per > 100) return toast("Впиши процент от 1 до 100");
+    if (!per || per < 1 || per > 100) return toast("Процент от 1 до 100");
     const custom = $("promoCode").value.trim();
     let code = custom ? custom.toUpperCase() : ("WZD-" + randAlnum(10));
-    if (custom && !/^[A-Za-z0-9-_]{4,64}$/.test(custom)) return toast("Код: только буквы и цифры, от 4 до 64 символов");
-    if (promos.some((x) => x.code === code)) return toast("Такой промокод уже есть");
-    promos.push({ code, percent: per, usesLeft: 10 });
-    savePromos(); renderPromos();
-    $("promoPercent").value = "";
-    $("promoCode").value = "";
-    toast("Промокод сгенерирован: " + code + " (−" + per + "%)");
+    if (custom && !/^[A-Za-z0-9-_]{4,64}$/.test(custom)) return toast("Буквы и цифры, 4–64 символов");
+    const exist = await sbGetWhere("app_promos", { code });
+    if (exist.length) return toast("Такой промокод уже есть");
+    await sbInsert("app_promos", { code, percent: per, uses_left: 10 });
+    $("promoPercent").value = ""; $("promoCode").value = "";
+    await renderPromos();
+    toast("Промокод: " + code + " (−" + per + "%)");
   });
 
-  $("promosList").addEventListener("click", (e) => {
+  $("promosList").addEventListener("click", async (e) => {
     const b = e.target.closest("[data-delpromo]");
     if (!b) return;
-    promos.splice(+b.dataset.delpromo, 1);
-    savePromos(); renderPromos();
+    await sbDelete("app_promos", { id: +b.dataset.delpromo });
+    await renderPromos();
     toast("Промокод удалён");
   });
 
-  /* ---------- nav / ui ---------- */
+  /* ---------- nav ---------- */
 
   function refreshNav() {
     const b = $("navLoginBtn");
     if (cur) {
       b.textContent = "Профиль";
-      b.classList.remove("primary");
-      b.classList.add("ghost");
+      b.classList.remove("primary"); b.classList.add("ghost");
     } else {
       b.textContent = "Войти";
-      b.classList.add("primary");
-      b.classList.remove("ghost");
+      b.classList.add("primary"); b.classList.remove("ghost");
     }
     $("logoutBtn").textContent = "Выйти (" + (cur ? cur.nick : "") + ")";
-  }
-
-  /* ---------- views ---------- */
-
-  const VIEWS = ["features", "tariffs", "profile", "video", "socials"];
-
-  function showMainPage(target) {
-    VIEWS.forEach((id) => { const el = $(id); if (el) el.hidden = id === "profile"; });
-    const hero = document.querySelector(".hero"); if (hero) hero.hidden = false;
-    if (target) target.scrollIntoView({ behavior: "smooth" });
-    else window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function showProfileView() {
-    VIEWS.forEach((id) => { const el = $(id); if (el) el.hidden = id !== "profile"; });
-    const hero = document.querySelector(".hero"); if (hero) hero.hidden = true;
-    if (cur) renderProfile();
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   $$('a[href^="#"]').forEach((a) => {
@@ -607,12 +619,21 @@
     });
   });
 
-  $("videoBox").addEventListener("click", () => toast("Видео появится позже — скину ссылку"));
-
-  $("year").textContent = new Date().getFullYear();
+  $("videoBox").addEventListener("click", () => toast("Видео появится позже"));
 
   /* ---------- init ---------- */
 
-  refreshNav();
-  if (cur) { $("profileNeedLogin").hidden = true; $("profileCard").hidden = false; renderProfile(); }
+  async function init() {
+    $("year").textContent = new Date().getFullYear();
+    const savedNick = getSession();
+    if (savedNick) {
+      const rows = await sbGetWhere("accounts", { nick: savedNick });
+      if (rows.length) { cur = rows[0]; }
+      else { saveSession(null); }
+    }
+    refreshNav();
+    if (cur) { showProfileView(); renderProfile(); }
+  }
+
+  init();
 })();
